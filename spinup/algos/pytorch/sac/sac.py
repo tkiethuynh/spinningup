@@ -3,10 +3,12 @@ import itertools
 import numpy as np
 import torch
 from torch.optim import Adam
-import gym
+import gymnasium as gym
 import time
+from typing import Callable, Optional, Dict, Any
 import spinup.algos.pytorch.sac.core as core
 from spinup.utils.logx import EpochLogger
+from spinup.utils.device_utils import get_torch_device
 
 
 class ReplayBuffer:
@@ -14,7 +16,7 @@ class ReplayBuffer:
     A simple FIFO experience replay buffer for SAC agents.
     """
 
-    def __init__(self, obs_dim, act_dim, size):
+    def __init__(self, obs_dim: tuple, act_dim: int, size: int):
         self.obs_buf = np.zeros(core.combined_shape(size, obs_dim), dtype=np.float32)
         self.obs2_buf = np.zeros(core.combined_shape(size, obs_dim), dtype=np.float32)
         self.act_buf = np.zeros(core.combined_shape(size, act_dim), dtype=np.float32)
@@ -22,7 +24,7 @@ class ReplayBuffer:
         self.done_buf = np.zeros(size, dtype=np.float32)
         self.ptr, self.size, self.max_size = 0, 0, size
 
-    def store(self, obs, act, rew, next_obs, done):
+    def store(self, obs: np.ndarray, act: np.ndarray, rew: float, next_obs: np.ndarray, done: bool):
         self.obs_buf[self.ptr] = obs
         self.obs2_buf[self.ptr] = next_obs
         self.act_buf[self.ptr] = act
@@ -31,22 +33,37 @@ class ReplayBuffer:
         self.ptr = (self.ptr+1) % self.max_size
         self.size = min(self.size+1, self.max_size)
 
-    def sample_batch(self, batch_size=32):
+    def sample_batch(self, batch_size: int = 32, device: Optional[torch.device] = None):
         idxs = np.random.randint(0, self.size, size=batch_size)
         batch = dict(obs=self.obs_buf[idxs],
                      obs2=self.obs2_buf[idxs],
                      act=self.act_buf[idxs],
                      rew=self.rew_buf[idxs],
                      done=self.done_buf[idxs])
-        return {k: torch.as_tensor(v, dtype=torch.float32) for k,v in batch.items()}
+        return {k: torch.as_tensor(v, dtype=torch.float32, device=device) for k,v in batch.items()}
 
 
 
-def sac(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0, 
-        steps_per_epoch=4000, epochs=100, replay_size=int(1e6), gamma=0.99, 
-        polyak=0.995, lr=1e-3, alpha=0.2, batch_size=100, start_steps=10000, 
-        update_after=1000, update_every=50, num_test_episodes=10, max_ep_len=1000, 
-        logger_kwargs=dict(), save_freq=1):
+def sac(env_fn: Callable[[], gym.Env], 
+        actor_critic: type[torch.nn.Module] = core.MLPActorCritic, 
+        ac_kwargs: Dict[str, Any] = dict(), 
+        seed: int = 0, 
+        steps_per_epoch: int = 4000, 
+        epochs: int = 100, 
+        replay_size: int = int(1e6), 
+        gamma: float = 0.99, 
+        polyak: float = 0.995, 
+        lr: float = 1e-3, 
+        alpha: float = 0.2, 
+        batch_size: int = 100, 
+        start_steps: int = 10000, 
+        update_after: int = 1000, 
+        update_every: int = 50, 
+        num_test_episodes: int = 10, 
+        max_ep_len: int = 1000, 
+        logger_kwargs: Dict[str, Any] = dict(), 
+        save_freq: int = 1,
+        compile: bool = False):
     """
     Soft Actor-Critic (SAC)
 
@@ -142,6 +159,8 @@ def sac(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
         save_freq (int): How often (in terms of gap between epochs) to save
             the current policy and value function.
 
+        compile (bool): Whether to use torch.compile for the model.
+
     """
 
     logger = EpochLogger(**logger_kwargs)
@@ -157,9 +176,18 @@ def sac(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
     # Action limit for clamping: critically, assumes all dimensions share the same bound!
     act_limit = env.action_space.high[0]
 
+    # Device selection
+    device = get_torch_device()
+    logger.log(f'Using device: {device}')
+
     # Create actor-critic module and target networks
-    ac = actor_critic(env.observation_space, env.action_space, **ac_kwargs)
-    ac_targ = deepcopy(ac)
+    ac = actor_critic(env.observation_space, env.action_space, **ac_kwargs).to(device)
+    ac_targ = deepcopy(ac).to(device)
+
+    # Optional torch.compile
+    if compile and hasattr(torch, 'compile'):
+        logger.log('Compiling actor-critic model...')
+        ac = torch.compile(ac)
 
     # Freeze target networks with respect to optimizers (only update via polyak averaging)
     for p in ac_targ.parameters():
@@ -199,8 +227,8 @@ def sac(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
         loss_q = loss_q1 + loss_q2
 
         # Useful info for logging
-        q_info = dict(Q1Vals=q1.detach().numpy(),
-                      Q2Vals=q2.detach().numpy())
+        q_info = dict(Q1Vals=q1.detach().cpu().numpy(),
+                      Q2Vals=q2.detach().cpu().numpy())
 
         return loss_q, q_info
 
@@ -216,7 +244,7 @@ def sac(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
         loss_pi = (alpha * logp_pi - q_pi).mean()
 
         # Useful info for logging
-        pi_info = dict(LogPi=logp_pi.detach().numpy())
+        pi_info = dict(LogPi=logp_pi.detach().cpu().numpy())
 
         return loss_pi, pi_info
 
@@ -264,15 +292,17 @@ def sac(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
                 p_targ.data.add_((1 - polyak) * p.data)
 
     def get_action(o, deterministic=False):
-        return ac.act(torch.as_tensor(o, dtype=torch.float32), 
+        return ac.act(torch.as_tensor(o, dtype=torch.float32, device=device), 
                       deterministic)
 
     def test_agent():
         for j in range(num_test_episodes):
-            o, d, ep_ret, ep_len = test_env.reset(), False, 0, 0
+            o, _ = test_env.reset()
+            d, ep_ret, ep_len = False, 0, 0
             while not(d or (ep_len == max_ep_len)):
                 # Take deterministic actions at test time 
-                o, r, d, _ = test_env.step(get_action(o, True))
+                o, r, terminated, truncated, _ = test_env.step(get_action(o, True))
+                d = terminated or truncated
                 ep_ret += r
                 ep_len += 1
             logger.store(TestEpRet=ep_ret, TestEpLen=ep_len)
@@ -280,7 +310,8 @@ def sac(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
     # Prepare for interaction with environment
     total_steps = steps_per_epoch * epochs
     start_time = time.time()
-    o, ep_ret, ep_len = env.reset(), 0, 0
+    o, _ = env.reset()
+    ep_ret, ep_len = 0, 0
 
     # Main loop: collect experience in env and update/log each epoch
     for t in range(total_steps):
@@ -294,7 +325,8 @@ def sac(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
             a = env.action_space.sample()
 
         # Step the env
-        o2, r, d, _ = env.step(a)
+        o2, r, terminated, truncated, _ = env.step(a)
+        d = terminated or truncated
         ep_ret += r
         ep_len += 1
 
@@ -313,12 +345,13 @@ def sac(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
         # End of trajectory handling
         if d or (ep_len == max_ep_len):
             logger.store(EpRet=ep_ret, EpLen=ep_len)
-            o, ep_ret, ep_len = env.reset(), 0, 0
+            o, _ = env.reset()
+            ep_ret, ep_len = 0, 0
 
         # Update handling
         if t >= update_after and t % update_every == 0:
             for j in range(update_every):
-                batch = replay_buffer.sample_batch(batch_size)
+                batch = replay_buffer.sample_batch(batch_size, device=device)
                 update(data=batch)
 
         # End of epoch handling
@@ -357,6 +390,7 @@ if __name__ == '__main__':
     parser.add_argument('--seed', '-s', type=int, default=0)
     parser.add_argument('--epochs', type=int, default=50)
     parser.add_argument('--exp_name', type=str, default='sac')
+    parser.add_argument('--compile', action='store_true')
     args = parser.parse_args()
 
     from spinup.utils.run_utils import setup_logger_kwargs
@@ -367,4 +401,4 @@ if __name__ == '__main__':
     sac(lambda : gym.make(args.env), actor_critic=core.MLPActorCritic,
         ac_kwargs=dict(hidden_sizes=[args.hid]*args.l), 
         gamma=args.gamma, seed=args.seed, epochs=args.epochs,
-        logger_kwargs=logger_kwargs)
+        logger_kwargs=logger_kwargs, compile=args.compile)

@@ -23,6 +23,8 @@ def load_policy_and_env(fpath, itr='last', deterministic=False):
     # determine if tf save or pytorch save
     if any(['tf1_save' in x for x in os.listdir(fpath)]):
         backend = 'tf1'
+    elif any(['tf2_save' in x for x in os.listdir(fpath)]):
+        backend = 'tf2'
     else:
         backend = 'pytorch'
 
@@ -32,7 +34,9 @@ def load_policy_and_env(fpath, itr='last', deterministic=False):
 
         if backend == 'tf1':
             saves = [int(x[8:]) for x in os.listdir(fpath) if 'tf1_save' in x and len(x)>8]
-
+        elif backend == 'tf2':
+            tf2save_path = osp.join(fpath, 'tf2_save')
+            saves = [int(x[5:]) for x in os.listdir(tf2save_path) if len(x)>5 and 'model' in x]
         elif backend == 'pytorch':
             pytsave_path = osp.join(fpath, 'pyt_save')
             # Each file in this folder has naming convention 'modelXX.pt', where
@@ -50,6 +54,8 @@ def load_policy_and_env(fpath, itr='last', deterministic=False):
     # load the get_action function
     if backend == 'tf1':
         get_action = load_tf_policy(fpath, itr, deterministic)
+    elif backend == 'tf2':
+        get_action = load_tf2_policy(fpath, itr, deterministic)
     else:
         get_action = load_pytorch_policy(fpath, itr, deterministic)
 
@@ -89,6 +95,33 @@ def load_tf_policy(fpath, itr, deterministic=False):
     return get_action
 
 
+def load_tf2_policy(fpath, itr, deterministic=False):
+    """ Load a TF2 policy saved with Spinning Up Logger."""
+
+    fname = osp.join(fpath, 'tf2_save', 'model'+itr)
+    print('\n\nLoading from %s.\n\n'%fname)
+
+    # Note: compile=False is important if we used MpiAdamOptimizer or other custom components
+    model = tf.keras.models.load_model(fname, compile=False)
+
+    # make function for producing an action given a single state
+    def get_action(x):
+        obs = tf.convert_to_tensor(x.reshape(1,-1).astype('float32'))
+        if hasattr(model, 'act'):
+            try:
+                # Try calling act with deterministic arg if it supports it
+                return model.act(obs, deterministic=deterministic)[0]
+            except TypeError:
+                # If act doesn't support deterministic arg
+                return model.act(obs)[0]
+        else:
+            # Fallback to calling pi directly
+            a, _ = model.pi(obs)
+            return a.numpy()[0]
+
+    return get_action
+
+
 def load_pytorch_policy(fpath, itr, deterministic=False):
     """ Load a pytorch policy saved with Spinning Up Logger."""
     
@@ -115,21 +148,24 @@ def run_policy(env, get_action, max_ep_len=None, num_episodes=100, render=True):
         "page on Experiment Outputs for how to handle this situation."
 
     logger = EpochLogger()
-    o, r, d, ep_ret, ep_len, n = env.reset(), 0, False, 0, 0, 0
+    o, _ = env.reset()
+    r, d, ep_ret, ep_len, n = 0, False, 0, 0, 0
     while n < num_episodes:
         if render:
             env.render()
             time.sleep(1e-3)
 
         a = get_action(o)
-        o, r, d, _ = env.step(a)
+        o, r, terminated, truncated, _ = env.step(a)
+        d = terminated or truncated
         ep_ret += r
         ep_len += 1
 
         if d or (ep_len == max_ep_len):
             logger.store(EpRet=ep_ret, EpLen=ep_len)
             print('Episode %d \t EpRet %.3f \t EpLen %d'%(n, ep_ret, ep_len))
-            o, r, d, ep_ret, ep_len = env.reset(), 0, False, 0, 0
+            o, _ = env.reset()
+            r, d, ep_ret, ep_len = 0, False, 0, 0
             n += 1
 
     logger.log_tabular('EpRet', with_min_and_max=True)

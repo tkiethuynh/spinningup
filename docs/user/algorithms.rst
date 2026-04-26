@@ -18,9 +18,9 @@ The following algorithms are implemented in the Spinning Up package:
 
 They are all implemented with `MLP`_ (non-recurrent) actor-critics, making them suitable for fully-observed, non-image-based RL environments, e.g. the `Gym Mujoco`_ environments.
 
-Spinning Up has two implementations for each algorithm (except for TRPO): one that uses `PyTorch`_ as the neural network library, and one that uses `Tensorflow v1`_ as the neural network library. (TRPO is currently only available in Tensorflow.)
+Spinning Up has three implementations for each algorithm: one that uses `PyTorch`_, one that uses `Tensorflow v1`_, and one that uses `Tensorflow v2`_ as the neural network library. (All are available for VPG, PPO, DDPG, TD3, SAC, and TRPO.)
 
-.. _`Gym Mujoco`: https://gym.openai.com/envs/#mujoco
+.. _`Gym Mujoco`: https://gymnasium.farama.org/environments/mujoco/
 .. _`Vanilla Policy Gradient`: ../algorithms/vpg.html
 .. _`Trust Region Policy Optimization`: ../algorithms/trpo.html
 .. _`Proximal Policy Optimization`: ../algorithms/ppo.html
@@ -30,6 +30,7 @@ Spinning Up has two implementations for each algorithm (except for TRPO): one th
 .. _`MLP`: https://en.wikipedia.org/wiki/Multilayer_perceptron
 .. _`PyTorch`: https://pytorch.org/
 .. _`Tensorflow v1`: https://www.tensorflow.org/versions/r1.15/api_docs
+.. _`Tensorflow v2`: https://www.tensorflow.org/api_docs/python/tf
 
 
 Why These Algorithms?
@@ -125,6 +126,41 @@ The algorithm function for a Tensorflow implementation performs the following ta
     11) Defining functions needed for running the main loop of the algorithm (e.g. the core update function, get action function, and test agent function, depending on the algorithm)
     
     12) Running the main loop of the algorithm:
+    
+        a) Run the agent in the environment
+    
+        b) Periodically update the parameters of the agent according to the main equations of the algorithm
+    
+        c) Log key performance metrics and save agent
+
+
+
+The Algorithm Function: Tensorflow Version (v2)
+-----------------------------------------------
+
+The algorithm function for a Tensorflow v2 implementation performs the following tasks in (roughly) this order:
+
+    1) Logger setup
+
+    2) Random seed setting
+    
+    3) Environment instantiation
+    
+    4) Constructing the actor-critic Keras model via the ``actor_critic`` function passed to the algorithm function as an argument
+    
+    5) Syncing parameters across MPI processes
+    
+    6) Instantiating the experience buffer
+    
+    7) Setting up callable loss functions using ``@tf.function`` for performance
+    
+    8) Making Keras optimizers (optionally wrapped for MPI)
+    
+    9) Setting up model saving through the logger
+    
+    10) Setting up an update function that uses ``tf.GradientTape`` for optimization
+    
+    11) Running the main loop of the algorithm:
     
         a) Run the agent in the environment
     

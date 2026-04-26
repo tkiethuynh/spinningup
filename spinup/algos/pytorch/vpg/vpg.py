@@ -1,12 +1,14 @@
 import numpy as np
 import torch
 from torch.optim import Adam
-import gym
+import gymnasium as gym
 import time
+from typing import Callable, Optional, Dict, Any
 import spinup.algos.pytorch.vpg.core as core
 from spinup.utils.logx import EpochLogger
 from spinup.utils.mpi_pytorch import setup_pytorch_for_mpi, sync_params, mpi_avg_grads
 from spinup.utils.mpi_tools import mpi_fork, mpi_avg, proc_id, mpi_statistics_scalar, num_procs
+from spinup.utils.device_utils import get_torch_device
 
 
 class VPGBuffer:
@@ -16,7 +18,7 @@ class VPGBuffer:
     for calculating the advantages of state-action pairs.
     """
 
-    def __init__(self, obs_dim, act_dim, size, gamma=0.99, lam=0.95):
+    def __init__(self, obs_dim: tuple, act_dim: tuple, size: int, gamma: float = 0.99, lam: float = 0.95):
         self.obs_buf = np.zeros(core.combined_shape(size, obs_dim), dtype=np.float32)
         self.act_buf = np.zeros(core.combined_shape(size, act_dim), dtype=np.float32)
         self.adv_buf = np.zeros(size, dtype=np.float32)
@@ -27,7 +29,7 @@ class VPGBuffer:
         self.gamma, self.lam = gamma, lam
         self.ptr, self.path_start_idx, self.max_size = 0, 0, size
 
-    def store(self, obs, act, rew, val, logp):
+    def store(self, obs: np.ndarray, act: np.ndarray, rew: float, val: float, logp: float):
         """
         Append one timestep of agent-environment interaction to the buffer.
         """
@@ -39,7 +41,7 @@ class VPGBuffer:
         self.logp_buf[self.ptr] = logp
         self.ptr += 1
 
-    def finish_path(self, last_val=0):
+    def finish_path(self, last_val: float = 0):
         """
         Call this at the end of a trajectory, or when one gets cut off
         by an epoch ending. This looks back in the buffer to where the
@@ -68,7 +70,7 @@ class VPGBuffer:
         
         self.path_start_idx = self.ptr
 
-    def get(self):
+    def get(self, device: torch.device):
         """
         Call this at the end of an epoch to get all of the data from
         the buffer, with advantages appropriately normalized (shifted to have
@@ -81,14 +83,25 @@ class VPGBuffer:
         self.adv_buf = (self.adv_buf - adv_mean) / adv_std
         data = dict(obs=self.obs_buf, act=self.act_buf, ret=self.ret_buf,
                     adv=self.adv_buf, logp=self.logp_buf)
-        return {k: torch.as_tensor(v, dtype=torch.float32) for k,v in data.items()}
+        return {k: torch.as_tensor(v, dtype=torch.float32, device=device) for k,v in data.items()}
 
 
 
-def vpg(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),  seed=0, 
-        steps_per_epoch=4000, epochs=50, gamma=0.99, pi_lr=3e-4,
-        vf_lr=1e-3, train_v_iters=80, lam=0.97, max_ep_len=1000,
-        logger_kwargs=dict(), save_freq=10):
+def vpg(env_fn: Callable[[], gym.Env], 
+        actor_critic: type[torch.nn.Module] = core.MLPActorCritic, 
+        ac_kwargs: Dict[str, Any] = dict(), 
+        seed: int = 0, 
+        steps_per_epoch: int = 4000, 
+        epochs: int = 50, 
+        gamma: float = 0.99, 
+        pi_lr: float = 3e-4,
+        vf_lr: float = 1e-3, 
+        train_v_iters: int = 80, 
+        lam: float = 0.97, 
+        max_ep_len: int = 1000,
+        logger_kwargs: Dict[str, Any] = dict(), 
+        save_freq: int = 10,
+        compile: bool = False):
     """
     Vanilla Policy Gradient 
 
@@ -174,6 +187,8 @@ def vpg(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),  seed=0,
         save_freq (int): How often (in terms of gap between epochs) to save
             the current policy and value function.
 
+        compile (bool): Whether to use torch.compile for the model.
+
     """
 
     # Special function to avoid certain slowdowns from PyTorch + MPI combo.
@@ -193,8 +208,17 @@ def vpg(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),  seed=0,
     obs_dim = env.observation_space.shape
     act_dim = env.action_space.shape
 
+    # Device selection
+    device = get_torch_device()
+    logger.log(f'Using device: {device}')
+
     # Create actor-critic module
-    ac = actor_critic(env.observation_space, env.action_space, **ac_kwargs)
+    ac = actor_critic(env.observation_space, env.action_space, **ac_kwargs).to(device)
+
+    # Optional torch.compile
+    if compile and hasattr(torch, 'compile'):
+        logger.log('Compiling actor-critic model...')
+        ac = torch.compile(ac)
 
     # Sync params across processes
     sync_params(ac)
@@ -235,7 +259,7 @@ def vpg(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),  seed=0,
     logger.setup_pytorch_saver(ac)
 
     def update():
-        data = buf.get()
+        data = buf.get(device)
 
         # Get loss and info values before update
         pi_l_old, pi_info_old = compute_loss_pi(data)
@@ -266,14 +290,16 @@ def vpg(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),  seed=0,
 
     # Prepare for interaction with environment
     start_time = time.time()
-    o, ep_ret, ep_len = env.reset(), 0, 0
+    o, _ = env.reset()
+    ep_ret, ep_len = 0, 0
 
     # Main loop: collect experience in env and update/log each epoch
     for epoch in range(epochs):
         for t in range(local_steps_per_epoch):
-            a, v, logp = ac.step(torch.as_tensor(o, dtype=torch.float32))
+            a, v, logp = ac.step(torch.as_tensor(o, dtype=torch.float32, device=device))
 
-            next_o, r, d, _ = env.step(a)
+            next_o, r, terminated, truncated, _ = env.step(a)
+            d = terminated or truncated
             ep_ret += r
             ep_len += 1
 
@@ -293,14 +319,15 @@ def vpg(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(),  seed=0,
                     print('Warning: trajectory cut off by epoch at %d steps.'%ep_len, flush=True)
                 # if trajectory didn't reach terminal state, bootstrap value target
                 if timeout or epoch_ended:
-                    _, v, _ = ac.step(torch.as_tensor(o, dtype=torch.float32))
+                    _, v, _ = ac.step(torch.as_tensor(o, dtype=torch.float32, device=device))
                 else:
                     v = 0
                 buf.finish_path(v)
                 if terminal:
                     # only save EpRet / EpLen if trajectory finished
                     logger.store(EpRet=ep_ret, EpLen=ep_len)
-                o, ep_ret, ep_len = env.reset(), 0, 0
+                o, _ = env.reset()
+                ep_ret, ep_len = 0, 0
 
 
         # Save model
@@ -337,6 +364,7 @@ if __name__ == '__main__':
     parser.add_argument('--steps', type=int, default=4000)
     parser.add_argument('--epochs', type=int, default=50)
     parser.add_argument('--exp_name', type=str, default='vpg')
+    parser.add_argument('--compile', action='store_true')
     args = parser.parse_args()
 
     mpi_fork(args.cpu)  # run parallel code with mpi
@@ -347,4 +375,4 @@ if __name__ == '__main__':
     vpg(lambda : gym.make(args.env), actor_critic=core.MLPActorCritic,
         ac_kwargs=dict(hidden_sizes=[args.hid]*args.l), gamma=args.gamma, 
         seed=args.seed, steps_per_epoch=args.steps, epochs=args.epochs,
-        logger_kwargs=logger_kwargs)
+        logger_kwargs=logger_kwargs, compile=args.compile)
