@@ -40,8 +40,10 @@ sudo apt update && sudo apt install -y swig libopenmpi-dev
 git clone https://github.com/tkiethuynh/spinningup.git
 cd spinningup
 
-# Install core package
+# Install core package (don't forget the dot at the end)
 pip install -e .
+
+# Install hardware acceleration support
 pip install nvidia-tensorrt
 ```
 
