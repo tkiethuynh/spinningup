@@ -292,7 +292,6 @@ def ppo(env_fn: Callable[[], gym.Env],
             loss_pi, pi_info = compute_loss_pi(data)
             kl = mpi_avg(pi_info['kl'])
             if kl > 1.5 * target_kl:
-                logger.log('Early stopping at step %d due to reaching max kl.'%i)
                 break
             loss_pi.backward()
             mpi_avg_grads(ac.pi)    # average grads across MPI processes
@@ -342,8 +341,6 @@ def ppo(env_fn: Callable[[], gym.Env],
             epoch_ended = t==local_steps_per_epoch-1
 
             if terminal or epoch_ended:
-                if epoch_ended and not(terminal):
-                    print('Warning: trajectory cut off by epoch at %d steps.'%ep_len, flush=True)
                 # if trajectory didn't reach terminal state, bootstrap value target
                 if timeout or epoch_ended:
                     _, v, _ = ac.step(torch.as_tensor(o, dtype=torch.float32, device=device))

@@ -251,8 +251,6 @@ def trpo(env_fn: Callable[[], gym.Env],
             epoch_ended = t==local_steps_per_epoch-1
 
             if terminal or epoch_ended:
-                if epoch_ended and not(terminal):
-                    print('Warning: trajectory cut off by epoch at %d steps.'%ep_len)
                 last_val = 0 if d else ac.v(o.reshape(1,-1).astype('float32')).numpy()[0]
                 buf.finish_path(last_val)
                 if terminal:
