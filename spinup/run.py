@@ -23,7 +23,8 @@ SUBSTITUTIONS = {'env': 'env_name',
                  'hid': 'ac_kwargs:hidden_sizes',
                  'act': 'ac_kwargs:activation',
                  'cpu': 'num_cpu',
-                 'dt': 'datestamp'}
+                 'dt': 'datestamp',
+                 'steps': 'steps_per_epoch'}
 
 # Only some algorithms can be parallelized (have num_cpu > 1):
 MPI_COMPATIBLE_ALGOS = ['vpg', 'trpo', 'ppo']
@@ -222,7 +223,7 @@ if __name__ == '__main__':
             FYI: When running an algorithm, any keyword argument to the
             algorithm function can be used as a flag, eg
 
-            \tpython -m spinup.run ppo --env HalfCheetah-v2 --clip_ratio 0.1
+            \tpython -m spinup.run ppo --env HalfCheetah-v5 --clip_ratio 0.1
 
             If you need a quick refresher on valid kwargs, get the docstring
             with

@@ -1,3 +1,7 @@
+# Setup GPU environment before any backend imports
+from spinup.utils.device_utils import setup_tf_gpu
+setup_tf_gpu()
+
 # Algorithms
 try:
     from spinup.algos.tf1.ddpg.ddpg import ddpg as ddpg_tf1

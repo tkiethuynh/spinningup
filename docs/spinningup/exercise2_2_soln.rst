@@ -5,7 +5,7 @@ Solution to Exercise 2.2
 .. figure:: ../images/ex2-2_ddpg_bug.svg
     :align: center
 
-    Learning curves for DDPG in HalfCheetah-v2 for bugged and non-bugged actor-critic implementations, averaged over three random seeds.
+    Learning curves for DDPG in HalfCheetah-v5 for bugged and non-bugged actor-critic implementations, averaged over three random seeds.
 
 
 .. admonition:: You Should Know
@@ -200,7 +200,7 @@ Exactly the same broadcasting shenanigans as in the Tensorflow version. Check ou
 .. figure:: ../images/ex2-2_ddpg_bug_pytorch.png
     :align: center
 
-    Learning curves for DDPG in HalfCheetah-v2 for bugged and non-bugged actor-critic implementations using PyTorch, averaged over three random seeds.
+    Learning curves for DDPG in HalfCheetah-v5 for bugged and non-bugged actor-critic implementations using PyTorch, averaged over three random seeds.
 
 
 

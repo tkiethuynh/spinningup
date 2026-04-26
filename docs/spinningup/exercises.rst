@@ -78,7 +78,7 @@ Problem Set 1: Basics of Implementation
 
     Implement your solution in ``exercise1_3.py``, and run that file to see the results of your work. There is no automatic checking for this exercise.
 
-    **Evaluation Criteria.** Evaluate your code by running ``exercise1_3.py`` with HalfCheetah-v2, InvertedPendulum-v2, and one other Gym MuJoCo environment of your choosing (set via the ``--env`` flag). It is set up to use smaller neural networks (hidden sizes [128,128]) than typical for TD3, with a maximum episode length of 150, and to run for only 10 epochs. The goal is to see significant learning progress relatively quickly (in terms of wall clock time). Experiments will likely take on the order of ~10 minutes. 
+    **Evaluation Criteria.** Evaluate your code by running ``exercise1_3.py`` with HalfCheetah-v5, InvertedPendulum-v2, and one other Gym MuJoCo environment of your choosing (set via the ``--env`` flag). It is set up to use smaller neural networks (hidden sizes [128,128]) than typical for TD3, with a maximum episode length of 150, and to run for only 10 epochs. The goal is to see significant learning progress relatively quickly (in terms of wall clock time). Experiments will likely take on the order of ~10 minutes. 
 
     Use the ``--use_soln`` flag to run Spinning Up's TD3 instead of your implementation. Anecdotally, within 10 epochs, the score in HalfCheetah should go over 300, and the score in InvertedPendulum should max out at 150.
 

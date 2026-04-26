@@ -206,7 +206,7 @@ def ddpg(env_fn: Callable[[], gym.Env],
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--env', type=str, default='HalfCheetah-v4')
+    parser.add_argument('--env', type=str, default='HalfCheetah-v5')
     parser.add_argument('--hid', type=int, default=256)
     parser.add_argument('--l', type=int, default=2)
     parser.add_argument('--gamma', type=float, default=0.99)

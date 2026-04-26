@@ -5,9 +5,9 @@ This project is a modernized version of OpenAI's Spinning Up in Deep RL. The cod
 ## Modernization Standards
 
 ### Environment & API
-- **Gymnasium Integration:** The project is fully migrated to `gymnasium`. All environment interactions follow the modern API (`obs, reward, terminated, truncated, info`).
+- **Gymnasium Integration:** The project is fully migrated to `gymnasium`. All environment interactions follow the modern API (`obs, reward, terminated, truncated, info`). Default environments have been updated to latest versions (e.g., `HalfCheetah-v5`, `CartPole-v1`).
 - **Python 3.10+:** The codebase targets modern Python features and standards.
-- **Type Hinting:** All algorithm functions and core classes include comprehensive Python type hints.
+- **Strict Dependency Alignment:** Core libraries are pinned to mutually compatible versions (e.g., NumPy 1.26.4 and SciPy 1.12.0) to eliminate cross-library initialization warnings.
 
 ### Deep Learning Backends
 - **PyTorch 2.x:**
@@ -17,12 +17,13 @@ This project is a modernized version of OpenAI's Spinning Up in Deep RL. The cod
 - **TensorFlow 2.x:**
     - Complete migration from TF1 to TF2.
     - Uses Keras models, Eager Execution, and `tf.GradientTape`.
-    - Fully GPU-enabled using a dynamic library resolution strategy for NVIDIA pip packages.
+    - Fully GPU-enabled with native **TensorRT** support for hardware-level optimizations.
 - **Legacy TF1:** Preserved for historical reference but isolated to prevent system-wide library conflicts.
 
 ### Device & Resource Management
 - **Automatic Device Selection:** Uses `spinup.utils.device_utils` for framework-agnostic GPU/CPU detection.
 - **MPI Support:** Maintained and modernized compatibility with MPI for parallel execution across both frameworks.
+
 
 ## Project Standards
 

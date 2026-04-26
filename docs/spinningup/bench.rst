@@ -17,7 +17,7 @@ HalfCheetah: PyTorch Versions
 .. figure:: ../images/plots/pyt/pytorch_halfcheetah_performance.svg
     :align: center
 
-    3M timestep benchmark for HalfCheetah-v3 using **PyTorch** implementations.
+    3M timestep benchmark for HalfCheetah-v5 using **PyTorch** implementations.
 
 
 HalfCheetah: Tensorflow Versions
@@ -26,7 +26,7 @@ HalfCheetah: Tensorflow Versions
 .. figure:: ../images/plots/tf1/tensorflow_halfcheetah_performance.svg
     :align: center
 
-    3M timestep benchmark for HalfCheetah-v3 using **Tensorflow** implementations.
+    3M timestep benchmark for HalfCheetah-v5 using **Tensorflow** implementations.
 
 
 
