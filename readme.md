@@ -32,9 +32,12 @@ This fork transforms the legacy Spinning Up codebase into a production-ready res
 git clone https://github.com/monigarr/spinningup-modern.git
 cd spinningup-modern
 
-# Install in editable mode with MuJoCo support
+# Install core package
 pip install -e .
-pip install "gymnasium[mujoco]"
+
+# [Recommended] Install MuJoCo and optimization libraries for GPU
+pip install "gymnasium[mujoco]" nvidia-tensorrt
+pip install "numpy==1.26.4" "scipy==1.12.0"
 ```
 
 ## Hardware Acceleration
@@ -71,12 +74,21 @@ All algorithms are implemented in both **PyTorch** and **TensorFlow 2**:
 
 ## Citing
 
-If you use this modernized version or the original Spinning Up in your research, please cite:
+If you use this modernized version in your research, please cite both the original work and this modernized fork:
 
 ```
 @article{SpinningUp2018,
     author = {Achiam, Joshua},
     title = {{Spinning Up in Deep Reinforcement Learning}},
     year = {2018}
+}
+
+@misc{SpinningUpModern2026,
+    author = {monigarr},
+    title = {{Spinning Up in Deep RL (Modernized)}},
+    year = {2026},
+    publisher = {GitHub},
+    journal = {GitHub repository},
+    howpublished = {\url{https://github.com/monigarr/spinningup-modern}}
 }
 ```
