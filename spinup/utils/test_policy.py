@@ -6,6 +6,7 @@ import tensorflow as tf
 import torch
 from spinup import EpochLogger
 from spinup.utils.logx import restore_tf_graph
+from spinup.utils.device_utils import get_torch_device
 
 
 def load_policy_and_env(fpath, itr='last', deterministic=False):
@@ -128,12 +129,13 @@ def load_pytorch_policy(fpath, itr, deterministic=False):
     fname = osp.join(fpath, 'pyt_save', 'model'+itr+'.pt')
     print('\n\nLoading from %s.\n\n'%fname)
 
-    model = torch.load(fname)
+    device = get_torch_device()
+    model = torch.load(fname, map_location=device)
 
     # make function for producing an action given a single state
     def get_action(x):
         with torch.no_grad():
-            x = torch.as_tensor(x, dtype=torch.float32)
+            x = torch.as_tensor(x, dtype=torch.float32, device=device)
             action = model.act(x)
         return action
 

@@ -109,17 +109,18 @@ def ppo(env_fn: Callable[[], gym.Env],
         if isinstance(ac.pi, core.MLPCategoricalActor):
             logits = ac.pi(obs)
             logp = ac.pi.log_prob_from_distribution(logits, tf.cast(act, tf.int32))
+            ent = ac.pi.entropy(logits)
         else:
-            mu, std = ac.pi(obs)
-            logp = ac.pi.log_prob_from_distribution((mu, std), act)
+            mu_std = ac.pi(obs)
+            logp = ac.pi.log_prob_from_distribution(mu_std, act)
+            ent = ac.pi.entropy(mu_std)
         
         ratio = tf.exp(logp - logp_old)
         clip_adv = tf.clip_by_value(ratio, 1-clip_ratio, 1+clip_ratio) * adv
         loss_pi = -tf.reduce_mean(tf.minimum(ratio * adv, clip_adv))
 
         approx_kl = tf.reduce_mean(logp_old - logp)
-        ent = tf.reduce_mean(-logp)
-        return loss_pi, approx_kl, ent
+        return loss_pi, approx_kl, tf.reduce_mean(ent)
 
     @tf.function
     def compute_loss_v(obs, ret):

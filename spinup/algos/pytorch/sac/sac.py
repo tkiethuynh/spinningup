@@ -288,8 +288,7 @@ def sac(env_fn: Callable[[], gym.Env],
             for p, p_targ in zip(ac.parameters(), ac_targ.parameters()):
                 # NB: We use an in-place operations "mul_", "add_" to update target
                 # params, as opposed to "mul" and "add", which would make new tensors.
-                p_targ.data.mul_(polyak)
-                p_targ.data.add_((1 - polyak) * p.data)
+                p_targ.copy_(polyak * p_targ + (1 - polyak) * p)
 
     def get_action(o, deterministic=False):
         return ac.act(torch.as_tensor(o, dtype=torch.float32, device=device), 

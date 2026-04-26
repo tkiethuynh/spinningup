@@ -73,6 +73,20 @@ def restore_tf_graph(sess, fpath):
         model[key] = graph.get_tensor_by_name(value)
     return model
 
+def restore_tf2_model(fpath):
+    """
+    Loads a TF2 model saved by Logger.
+    
+    Args:
+        fpath: Filepath to the tf2_save directory (containing the model folder).
+        
+    Returns:
+        The loaded Keras model.
+    """
+    if tf is None:
+        raise ImportError("TensorFlow is not installed or could not be loaded.")
+    return tf.keras.models.load_model(fpath, compile=False)
+
 
 class Logger:
     """

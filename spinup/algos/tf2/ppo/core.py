@@ -31,6 +31,9 @@ class MLPCategoricalActor(tf.keras.Model):
     def log_prob_from_distribution(self, logits, a):
         return tf.reduce_sum(tf.one_hot(a, depth=logits.shape[-1]) * tf.nn.log_softmax(logits), axis=1)
 
+    def entropy(self, logits):
+        return tf.reduce_sum(-tf.nn.softmax(logits) * tf.nn.log_softmax(logits), axis=1)
+
 class MLPGaussianActor(tf.keras.Model):
     def __init__(self, obs_dim, act_dim, hidden_sizes, activation):
         super().__init__()
@@ -50,6 +53,10 @@ class MLPGaussianActor(tf.keras.Model):
         log_std = tf.math.log(std)
         pre_sum = -0.5 * (((a - mu) / (std + 1e-8))**2 + 2 * log_std + np.log(2 * np.pi))
         return tf.reduce_sum(pre_sum, axis=1)
+
+    def entropy(self, mu_std):
+        _, std = mu_std
+        return tf.reduce_sum(tf.math.log(std) + 0.5 * np.log(2 * np.pi * np.e), axis=1)
 
 class MLPCritic(tf.keras.Model):
     def __init__(self, obs_dim, hidden_sizes, activation):

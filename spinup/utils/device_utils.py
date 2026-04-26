@@ -78,20 +78,3 @@ def get_tf_device():
 
 # Call setup BEFORE importing tensorflow
 setup_tf_gpu()
-
-try:
-    import tensorflow as tf
-except ImportError:
-    tf = None
-
-def get_torch_device():
-    """Returns the most appropriate PyTorch device."""
-    if torch.cuda.is_available():
-        return torch.device('cuda')
-    return torch.device('cpu')
-
-def get_tf_device():
-    """Returns a string representation of the best TF device."""
-    if tf and tf.config.list_physical_devices('GPU'):
-        return '/GPU:0'
-    return '/device:CPU:0'
