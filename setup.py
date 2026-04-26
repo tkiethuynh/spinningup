@@ -31,7 +31,10 @@ setup(
         'tqdm',
         'six',
         'pyparsing',
-        'pytz'
+        'pytz',
+        'pyyaml',
+        'distro',
+        'google-genai'
     ],
     description="Modernized version of Spinning Up in Deep RL with TF2, PyTorch 2.x, and Gymnasium.",
     author="OpenAI & Kiet Huynh",
