@@ -76,8 +76,8 @@ Installing Spinning Up
 
 .. parsed-literal::
 
-    git clone https://github.com/monigarr/spinningup-modern.git
-    cd spinningup-modern
+    git clone https://github.com/tkiethuynh/spinningup.git
+    cd spinningup
     pip install -e .
 
 .. admonition:: You Should Know

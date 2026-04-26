@@ -30,6 +30,7 @@ setup(
         'torch',
         'tqdm'
     ],
-    description="Teaching tools for introducing people to deep RL.",
-    author="Joshua Achiam",
+    description="Modernized version of Spinning Up in Deep RL with TF2, PyTorch 2.x, and Gymnasium.",
+    author="OpenAI & Kiet Huynh",
+    url="https://github.com/tkiethuynh/spinningup",
 )

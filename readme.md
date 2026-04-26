@@ -29,8 +29,8 @@ This fork transforms the legacy Spinning Up codebase into a production-ready res
 ### Setup
 ```bash
 # Clone the repository
-git clone https://github.com/monigarr/spinningup-modern.git
-cd spinningup-modern
+git clone https://github.com/tkiethuynh/spinningup.git
+cd spinningup
 
 # Install core package
 pip install -e .
@@ -84,11 +84,11 @@ If you use this modernized version in your research, please cite both the origin
 }
 
 @misc{SpinningUpModern2026,
-    author = {monigarr},
+    author = {Kiet Huynh},
     title = {{Spinning Up in Deep RL (Modernized)}},
     year = {2026},
     publisher = {GitHub},
     journal = {GitHub repository},
-    howpublished = {\url{https://github.com/monigarr/spinningup-modern}}
+    howpublished = {\url{https://github.com/tkiethuynh/spinningup}}
 }
 ```

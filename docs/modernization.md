@@ -1,6 +1,6 @@
 # Spinning Up Modern: Comprehensive Modernization Report
 
-**Author:** Gemini CLI Agent  
+**Author:** Kiet Huynh  
 **Date:** April 2026
 
 ## 1. Introduction
