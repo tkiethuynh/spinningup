@@ -290,7 +290,7 @@ class EpochLogger(Logger):
         if val is not None:
             super().log_tabular(key,val)
         else:
-            v = self.epoch_dict[key]
+            v = self.epoch_dict.get(key, [])
             if len(v) == 0:
                 return
             vals = np.concatenate(v) if isinstance(v[0], np.ndarray) and len(v[0].shape)>0 else v
@@ -307,7 +307,7 @@ class EpochLogger(Logger):
         """
         Lets an algorithm ask the logger for mean/std/min/max of a diagnostic.
         """
-        v = self.epoch_dict[key]
+        v = self.epoch_dict.get(key, [])
         if len(v) == 0:
             return None
         vals = np.concatenate(v) if isinstance(v[0], np.ndarray) and len(v[0].shape)>0 else v
