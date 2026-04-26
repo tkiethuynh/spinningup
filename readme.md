@@ -24,6 +24,7 @@ This fork transforms the legacy Spinning Up codebase into a production-ready res
 ### Prerequisites
 - Python 3.10 or greater
 - OpenMPI (for parallel execution)
+- SWIG (required for Box2D environments: `sudo apt install swig`)
 - NVIDIA Drivers (for GPU support)
 
 ### Setup
@@ -80,7 +81,7 @@ All algorithms are implemented in both **PyTorch** and **TensorFlow 2**:
 
 If you use this modernized version in your research, please cite both the original work and this modernized fork:
 
-```
+```bibtex
 @article{SpinningUp2018,
     author = {Achiam, Joshua},
     title = {{Spinning Up in Deep Reinforcement Learning}},
