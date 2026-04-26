@@ -110,6 +110,8 @@ setup_tf_gpu()
 
 try:
     import tensorflow as tf
+    import logging
+    tf.get_logger().setLevel(logging.ERROR)
 except ImportError:
     tf = None
 
