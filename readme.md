@@ -1,27 +1,77 @@
-**Status:** Active (Modernized to PyTorch 2.x, TensorFlow 2.x, and Gymnasium)
+# Spinning Up in Deep RL (Modernized)
 
-Welcome to Spinning Up in Deep RL (Modernized)! 
-===============================================
+**Status:** Active & Modernized (PyTorch 2.5+, TensorFlow 2.15, Gymnasium)
 
-This is an educational resource produced by OpenAI that makes it easier to learn about deep reinforcement learning (deep RL).
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![GPU Enabled](https://img.shields.io/badge/GPU-Accelerated-green.svg)](#hardware-acceleration)
 
-For the unfamiliar: [reinforcement learning](https://en.wikipedia.org/wiki/Reinforcement_learning) (RL) is a machine learning approach for teaching agents how to solve tasks by trial and error. Deep RL refers to the combination of RL with [deep learning](http://ufldl.stanford.edu/tutorial/).
+Welcome to the **modernized** version of OpenAI's [Spinning Up in Deep RL](https://spinningup.openai.com)! This repository has been updated to support the latest software ecosystems while preserving the educational clarity and standalone nature of the original implementations.
 
-This module contains a variety of helpful resources, including:
+## What's New in the Modernized Version?
 
-- a short [introduction](https://spinningup.openai.com/en/latest/spinningup/rl_intro.html) to RL terminology, kinds of algorithms, and basic theory,
-- an [essay](https://spinningup.openai.com/en/latest/spinningup/spinningup.html) about how to grow into an RL research role,
-- a [curated list](https://spinningup.openai.com/en/latest/spinningup/keypapers.html) of important papers organized by topic,
-- a well-documented [code repo](https://github.com/monigarr/spinningup-modern) of short, standalone implementations of key algorithms,
-- and a few [exercises](https://spinningup.openai.com/en/latest/spinningup/exercises.html) to serve as warm-ups.
+This fork transforms the legacy Spinning Up codebase into a production-ready research environment:
 
-Get started at [spinningup.openai.com](https://spinningup.openai.com)!
+*   **Gymnasium Integration:** Fully migrated from `gym` to the latest `gymnasium` API. Standardized on `v5` MuJoCo environments (e.g., `HalfCheetah-v5`).
+*   **TensorFlow 2.x Migration:** Complete rewrite of the TensorFlow backend. Gone are sessions and placeholders; the new implementation uses **Keras Models**, **Eager Execution**, and `tf.GradientTape`.
+*   **PyTorch 2.x Optimization:** Updated to PyTorch 2.5+. Includes support for **`torch.compile()`** for superior graph-mode performance.
+*   **Hardware Acceleration:** Native support for GPU/CUDA across both frameworks.
+*   **Dynamic Library Resolution:** A custom initialization system that automatically resolves version mismatches in pip-installed NVIDIA libraries (e.g., matching cuDNN 9 to TF 2.15 expectations).
+*   **Type Hinting & Modern Python:** Comprehensive Python type hints added to all core algorithms and utilities for enhanced developer experience.
 
+## Installation
 
-Citing Spinning Up
-------------------
+### Prerequisites
+- Python 3.10 or greater
+- OpenMPI (for parallel execution)
+- NVIDIA Drivers (for GPU support)
 
-If you reference or use Spinning Up in your research, please cite:
+### Setup
+```bash
+# Clone the repository
+git clone https://github.com/monigarr/spinningup-modern.git
+cd spinningup-modern
+
+# Install in editable mode with MuJoCo support
+pip install -e .
+pip install "gymnasium[mujoco]"
+```
+
+## Hardware Acceleration
+
+The system automatically detects your GPU and configures the environment. For detailed technical information on how we handle library version mapping, see the [Modernization Report](docs/modernization.pdf).
+
+### Running on GPU
+Backends automatically detect and use the most capable device.
+```bash
+# Run PPO with PyTorch on GPU
+python -m spinup.run ppo --env CartPole-v1
+
+# Run PPO with TensorFlow 2 on GPU
+python -m spinup.run ppo_tf2 --env CartPole-v1
+
+# Enable PyTorch graph compilation for speed
+python -m spinup.run ppo --env HalfCheetah-v5 --compile
+```
+
+## Documentation
+
+- **[Modernization Report](docs/modernization.pdf)**: Comprehensive technical details on the architectural changes and GPU resolution strategies.
+- **[Spinning Up Site](https://spinningup.openai.com)**: The original educational content (theory and background).
+
+## Included Algorithms
+
+All algorithms are implemented in both **PyTorch** and **TensorFlow 2**:
+- Vanilla Policy Gradient (VPG)
+- Trust Region Policy Optimization (TRPO)
+- Proximal Policy Optimization (PPO)
+- Deep Deterministic Policy Gradient (DDPG)
+- Twin Delayed DDPG (TD3)
+- Soft Actor-Critic (SAC)
+
+## Citing
+
+If you use this modernized version or the original Spinning Up in your research, please cite:
 
 ```
 @article{SpinningUp2018,
