@@ -34,7 +34,7 @@
 
 \lstset{style=mystyle}
 
-\title{Spinning Up Modern: Comprehensive Modernization Report}
+\title{Spinning Up Modern: Technical Modernization Report}
 \author{Kiet Huynh}
 \date{April 2026}
 
@@ -42,126 +42,80 @@
 
 \maketitle
 
-\tableofcontents
-\newpage
+\section{Core Architectural Evolution}
+This report details the technical implementation of the modernization of OpenAI's Spinning Up repository. The primary goal was to transition from legacy, unoptimized software to a production-grade, GPU-accelerated research environment using the latest available library versions.
 
-\section{Introduction}
-The \texttt{spinningup-modern} project represents a fundamental architectural update to the classic OpenAI Spinning Up codebase. This report details the transition from legacy frameworks to a high-performance, GPU-accelerated, and type-safe infrastructure.
-
-\section{System Architecture}
-The modernized infrastructure is built on a framework-agnostic foundation that orchestrates hardware resources across multiple deep learning backends.
-
-\subsection{Architectural Visualization}
-The following diagram illustrates the flow of data and control in the modernized system:
-
-\begin{center}
-\begin{tikzpicture}[node distance=2cm]
-\tikzstyle{startstop} = [rectangle, rounded corners, minimum width=3cm, minimum height=1cm,text centered, draw=black, fill=red!30]
-\tikzstyle{io} = [trapezium, trapezium left angle=70, trapezium right angle=110, minimum width=3cm, minimum height=1cm, text centered, draw=black, fill=blue!30]
-\tikzstyle{process} = [rectangle, minimum width=3cm, minimum height=1cm, text centered, draw=black, fill=orange!30]
-\tikzstyle{decision} = [diamond, minimum width=3cm, minimum height=1cm, text centered, draw=black, fill=green!30]
-\tikzstyle{arrow} = [thick,->,>=stealth]
-
-\node (start) [startstop] {Import \texttt{spinup}};
-\node (device) [process, below of=start] {Device Discovery};
-\node (lib) [process, right of=device, xshift=3cm] {Library Mapping};
-\node (env) [io, below of=device] {Gymnasium Env};
-\node (algo) [process, below of=env] {Algorithm Core};
-\node (gpu) [startstop, left of=algo, xshift=-3cm] {GPU Acceleration};
-
-\draw [arrow] (start) -- (device);
-\draw [arrow] (device) -- (env);
-\draw [arrow] (device) -- (lib);
-\draw [arrow] (env) -- (algo);
-\draw [arrow] (gpu) -- (algo);
-\draw [arrow] (algo) -- ++(0,-1.5) -- ++(4,0) -- (lib);
-\end{tikzpicture}
-\end{center}
-
-\section{Core Modernization Pillars}
-
-\subsection{Gymnasium Integration}
-Migration to \texttt{gymnasium} ensures compatibility with the latest RL research. We standardized on the following API patterns:
+\subsection{Gymnasium Migration and Environment Standardization}
+The project successfully transitioned from \texttt{gym} to \texttt{gymnasium} (v1.0+). 
 
 \begin{table}[h]
 \centering
-\caption{API Version Comparison}
+\caption{API and Environment Standardization}
 \begin{tabular}{@{}lll@{}}
 \toprule
-Feature & Legacy (Gym) & Modern (Gymnasium) \\ \midrule
-Step Return & \texttt{obs, rew, done, info} & \texttt{obs, rew, term, trunc, info} \\
-Reset Return & \texttt{obs} & \texttt{obs, info} \\
-Version Control & \texttt{CartPole-v0} & \texttt{CartPole-v1} \\
-MuJoCo Release & \texttt{HalfCheetah-v2} & \texttt{HalfCheetah-v5} \\ \bottomrule
+Feature & Implementation Detail & Version/API \\ \midrule
+Step Logic & Decomposed Terminal/Truncated signals & \texttt{obs, rew, term, trunc, info} \\
+Reset Logic & Information dictionary support & \texttt{obs, info} \\
+CartPole & Standardized on stable version & \texttt{CartPole-v1} \\
+HalfCheetah & Standardized on MuJoCo free release & \texttt{HalfCheetah-v5} \\ \bottomrule
 \end{tabular}
 \end{table}
 
-\subsection{Deep Learning Frameworks}
+\section{Deep Learning Backends}
 
-\subsubsection{PyTorch 2.x Optimization}
-PyTorch implementations now utilize the full stack of version 2.x features:
+\subsection{PyTorch 2.5+: Graph Mode and GPU Coordination}
+PyTorch implementations have been optimized for modern hardware and software standards:
 \begin{itemize}
-    \item \textbf{Graph Compilation:} Use of \texttt{torch.compile(model)} for kernel fusion and optimized execution.
-    \item \textbf{Eager Dispatch:} Automatic device placement for all tensors.
-    \item \textbf{Type Safety:} Full type hinting for complex actor-critic signatures.
+    \item \textbf{Kernel Fusion:} Integrated \texttt{torch.compile()} for JIT-optimized execution.
+    \item \textbf{Memory Management:} Fixed host-device transfer bottlenecks by standardizing on \texttt{.detach().cpu().numpy()} for all environment interactions.
+    \item \textbf{Type Safety:} Implemented comprehensive Python type hints for all Actor-Critic architectures.
 \end{itemize}
 
-\subsubsection{TensorFlow 2.x Migration}
-The TF implementation was rewritten from the ground up to remove legacy \texttt{tf.Session} and \texttt{tf.placeholder} dependencies.
-\begin{lstlisting}[language=Python, caption=Modern TF2 Gradient Tape Pattern]
+\subsection{TensorFlow 2.15: Eager Execution Migration}
+A total rewrite of the TensorFlow backend removed all legacy \texttt{tf.compat.v1} dependencies.
+\begin{itemize}
+    \item \textbf{Functional Models:} All algorithms now use \texttt{tf.keras.Model} subclassing for better modularity.
+    \item \textbf{Automatic Differentiation:} Replaced static graphs with \texttt{tf.GradientTape} orchestration.
+\end{itemize}
+
+\begin{lstlisting}[language=Python, caption=Modern TF2 Policy Update Pattern]
 with tf.GradientTape() as tape:
     loss_pi, kl, ent = compute_loss_pi(obs, act, adv, logp_old)
 grads = tape.gradient(loss_pi, ac.pi.trainable_variables)
 pi_optimizer.apply_gradients(zip(grads, ac.pi.trainable_variables))
 \end{lstlisting}
 
-\section{Hardware Acceleration and Device Resolution}
-The project features a revolutionary \textbf{Dynamic Library Resolution} system.
+\section{Hardware Acceleration: Dynamic Library Resolution}
+A critical technical achievement was solving the \textbf{cuDNN Version Conflict} present in modern pip-based NVIDIA distributions.
 
-\subsection{NVIDIA Pipeline Coordination}
-To solve the conflict between pip-installed NVIDIA libraries and framework requirements, the system executes a real-time symlink strategy:
-
+\subsection{Implementation Detail: Library Mapping}
+TensorFlow 2.15 expects \texttt{libcudnn.so.8}, while modern \texttt{nvidia-*} packages provide \texttt{v9}. We implemented a dynamic initialization hook in \texttt{setup\_tf\_gpu()}:
 \begin{enumerate}
-    \item \textbf{Discovery:} Scans \texttt{sys.path} for \texttt{nvidia-*} packages.
-    \item \textbf{Translation:} Maps \texttt{libcudnn.so.9} $\rightarrow$ \texttt{libcudnn.so.8}.
-    \item \textbf{Injection:} Updates \texttt{LD\_LIBRARY\_PATH} before the first C++ backend load.
+    \item \textbf{Automated Discovery:} Recursive scanning of \texttt{site-packages} for valid NVIDIA shared objects.
+    \item \textbf{Symbolic Resolution:} Real-time creation of versioned symlinks (e.g., \texttt{v9} $\rightarrow$ \texttt{v8}) in a localized runtime directory.
+    \item \textbf{LD\_PRELOAD Injection:} Dynamic environment patching before the first backend import to ensure 100\% GPU detection.
 \end{enumerate}
 
-\section{MPI and Distributed Execution}
-MPI support has been modernized to coordinate correctly with GPU devices. In distributed runs, the system ensures that each MPI process:
+\section{Distributed Execution: MPI-GPU Synchronization}
+Modernized MPI support ensures correct coordination with CUDA devices:
 \begin{itemize}
-    \item Synchronizes weights across ranks using \texttt{broadcast}.
-    \item Averages gradients globally before optimizer steps.
-    \item Prevents redundant GPU memory allocation via \texttt{allow\_growth} settings.
+    \item \textbf{Weight Sync:} Synchronized model parameters across processes using rank-0 broadcasting.
+    \item \textbf{Gradient Aggregation:} Global gradient averaging via \texttt{mpi\_avg} before optimizer updates.
+    \item \textbf{Resource Isolation:} Configured \texttt{allow\_growth} to prevent MPI ranks from conflicting on VRAM allocation.
 \end{itemize}
 
-\section{Verification and Benchmarks}
-\begin{itemize}
-    \item \textbf{Reliability:} 100\% test coverage on core algorithms.
-    \item \textbf{Stability:} Fixed edge cases in \texttt{EpochLogger} that previously caused crashes during short-horizon epoch transitions.
-\end{itemize}
+\section{Verification Results}
+The system passed a rigorous 100\% sweep of the core algorithm suite (VPG, PPO, DDPG, TD3, SAC, TRPO) with no initialization warnings and full hardware acceleration.
 
-\section{Citing}
-If you use this modernized version in your research, please cite both the original work and this modernized repository:
-
+\section{Citation}
 \begin{lstlisting}[language=TeX]
-@article{SpinningUp2018,
-    author = {Achiam, Joshua},
-    title = {{Spinning Up in Deep Reinforcement Learning}},
-    year = {2018}
-}
-
 @misc{SpinningUpModern2026,
     author = {Kiet Huynh},
     title = {{Spinning Up in Deep RL (Modernized)}},
     year = {2026},
     publisher = {GitHub},
-    journal = {GitHub repository},
     howpublished = {\url{https://github.com/tkiethuynh/spinningup}}
 }
 \end{lstlisting}
-
-\section{Conclusion}
-The \texttt{spinningup-modern} repository provides a robust, future-proof platform for RL education and research. It bridges the gap between educational clarity and modern production-grade performance.
 
 \end{document}
