@@ -63,7 +63,7 @@ HalfCheetah & Standardized on MuJoCo free release & \texttt{HalfCheetah-v5} \\ \
 
 \section{Deep Learning Backends}
 
-\subsection{PyTorch 2.5+: Graph Mode and GPU Coordination}
+\subsection{PyTorch 2.1.2: Graph Mode and GPU Coordination}
 PyTorch implementations have been optimized for modern hardware and software standards:
 \begin{itemize}
     \item \textbf{Kernel Fusion:} Integrated \texttt{torch.compile()} for JIT-optimized execution.
@@ -85,16 +85,19 @@ grads = tape.gradient(loss_pi, ac.pi.trainable_variables)
 pi_optimizer.apply_gradients(zip(grads, ac.pi.trainable_variables))
 \end{lstlisting}
 
-\section{Hardware Acceleration: Dynamic Library Resolution}
-A critical technical achievement was solving the \textbf{cuDNN Version Conflict} present in modern pip-based NVIDIA distributions.
+\section{Hardware Acceleration: Strict Dependency Alignment}
+A critical technical achievement was solving the \textbf{cuDNN Version Conflict} present in modern pip-based NVIDIA distributions when combining PyTorch and TensorFlow in the same environment.
 
-\subsection{Implementation Detail: Library Mapping}
-TensorFlow 2.15 expects \texttt{libcudnn.so.8}, while modern \texttt{nvidia-*} packages provide \texttt{v9}. We implemented a dynamic initialization hook in \texttt{setup\_tf\_gpu()}:
+\subsection{Implementation Detail: The Golden Path}
+TensorFlow 2.15 strictly requires \texttt{libcudnn.so.8}. However, installing the latest PyTorch versions (e.g., 2.5+) automatically pulls down \texttt{cuDNN v9} dependencies, silently breaking TensorFlow's ability to detect the GPU.
+
+To resolve this natively without resorting to fragile runtime symlinks or \texttt{LD\_LIBRARY\_PATH} hacking, we established a strict dependency alignment:
 \begin{enumerate}
-    \item \textbf{Automated Discovery:} Recursive scanning of \texttt{site-packages} for valid NVIDIA shared objects.
-    \item \textbf{Symbolic Resolution:} Real-time creation of versioned symlinks (e.g., \texttt{v9} $\rightarrow$ \texttt{v8}) in a localized runtime directory.
-    \item \textbf{LD\_PRELOAD Injection:} Dynamic environment patching before the first backend import to ensure 100\% GPU detection.
+    \item \textbf{Version Pinning:} PyTorch is pinned to \texttt{torch==2.1.2}.
+    \item \textbf{Native Resolution:} This specific PyTorch release explicitly depends on \texttt{nvidia-cudnn-cu12==8.9.2.26}.
+    \item \textbf{Framework Harmony:} This \texttt{cuDNN} package natively provides \texttt{libcudnn.so.8}, perfectly satisfying the requirements of both \texttt{torch==2.1.2} and \texttt{tensorflow==2.15.0} simultaneously.
 \end{enumerate}
+This ensures that the repository remains "plug-and-play" across diverse Linux environments, granting both backends full access to the GPU right out of the box.
 
 \section{Distributed Execution: MPI-GPU Synchronization}
 Modernized MPI support ensures correct coordination with CUDA devices:

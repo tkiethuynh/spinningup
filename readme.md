@@ -1,6 +1,6 @@
 # Spinning Up in Deep RL (Modernized)
 
-**Status:** Active & Modernized (PyTorch 2.5+, TensorFlow 2.15, Gymnasium)
+**Status:** Active & Modernized (PyTorch 2.1.2, TensorFlow 2.15, Gymnasium)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
@@ -14,9 +14,9 @@ This fork transforms the legacy Spinning Up codebase into a production-ready res
 
 *   **Gymnasium Integration:** Fully migrated from `gym` to the latest `gymnasium` API. Standardized on `v5` MuJoCo environments (e.g., `HalfCheetah-v5`).
 *   **TensorFlow 2.x Migration:** Complete rewrite of the TensorFlow backend. Gone are sessions and placeholders; the new implementation uses **Keras Models**, **Eager Execution**, and `tf.GradientTape`.
-*   **PyTorch 2.x Optimization:** Updated to PyTorch 2.5+. Includes support for **`torch.compile()`** for superior graph-mode performance.
+*   **PyTorch 2.x Optimization:** Pinned to PyTorch 2.1.2 for native dependency harmony. Includes support for **`torch.compile()`** for superior graph-mode performance.
 *   **Hardware Acceleration:** Native support for GPU/CUDA across both frameworks.
-*   **Dynamic Library Resolution:** A custom initialization system that automatically resolves version mismatches in pip-installed NVIDIA libraries (e.g., matching cuDNN 9 to TF 2.15 expectations).
+*   **Strict Dependency Alignment:** A custom initialization system that guarantees native GPU sharing between TensorFlow and PyTorch without fragile runtime hacks.
 *   **Type Hinting & Modern Python:** Comprehensive Python type hints added to all core algorithms and utilities for enhanced developer experience.
 
 ## Installation

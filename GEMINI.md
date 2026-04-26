@@ -2,6 +2,9 @@
 
 This project is a modernized version of OpenAI's Spinning Up in Deep RL. The codebase has been updated to use latest stable versions of all core libraries while maintaining the educational clarity of the original.
 
+### Dependency Management & Hardware Acceleration
+- **Strict Dependency Alignment**: To ensure native GPU sharing between TensorFlow 2.15 and PyTorch without runtime hacks or `LD_LIBRARY_PATH` manipulation, the project pins `torch==2.1.2` and `tensorflow==2.15.0`. This specific combination natively resolves the `cuDNN` version conflict (v8 vs v9) on modern NVIDIA installations. Always maintain these versions in `setup.py`.
+
 ### Framework-Specific Guidelines
 
 #### PyTorch 2.x
