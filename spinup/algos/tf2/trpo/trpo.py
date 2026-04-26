@@ -119,10 +119,12 @@ def trpo(env_fn: Callable[[], gym.Env],
         if isinstance(ac.pi, core.MLPCategoricalActor):
             logits = ac.pi(obs)
             logp = ac.pi.log_prob_from_distribution(logits, tf.cast(act, tf.int32))
+            ent = ac.pi.entropy(logits)
         else:
             mu_std = ac.pi(obs)
             logp = ac.pi.log_prob_from_distribution(mu_std, act)
-        return -tf.reduce_mean(tf.exp(logp - logp_old) * adv)
+            ent = ac.pi.entropy(mu_std)
+        return -tf.reduce_mean(tf.exp(logp - logp_old) * adv), logp, tf.reduce_mean(ent)
 
     def get_kl(obs):
         if isinstance(ac.pi, core.MLPCategoricalActor):
@@ -178,7 +180,7 @@ def trpo(env_fn: Callable[[], gym.Env],
         with tf.device(device):
             # TRPO update for policy
             with tf.GradientTape() as tape:
-                loss_pi = get_pi_loss(obs, act, adv, logp_old)
+                loss_pi, logp, ent = get_pi_loss(obs, act, adv, logp_old)
             
             grads = tape.gradient(loss_pi, ac.pi.trainable_variables)
             g = flat_concat(grads).numpy()
@@ -197,7 +199,7 @@ def trpo(env_fn: Callable[[], gym.Env],
             def check_constraints(step):
                 assign_params_from_flat(tf.convert_to_tensor(old_params - step), ac.pi.trainable_variables)
                 kl = mpi_avg(get_kl(obs).numpy())
-                loss = mpi_avg(get_pi_loss(obs, act, adv, logp_old).numpy())
+                loss = mpi_avg(get_pi_loss(obs, act, adv, logp_old)[0].numpy())
                 return kl <= 1.5 * delta and loss <= loss_pi.numpy()
 
             # Backtracking line search
@@ -218,11 +220,12 @@ def trpo(env_fn: Callable[[], gym.Env],
                 vf_optimizer.apply_gradients(zip(grads, ac.v.trainable_variables))
 
             # Log changes
-            loss_pi_new = get_pi_loss(obs, act, adv, logp_old)
+            loss_pi_new, _, _ = get_pi_loss(obs, act, adv, logp_old)
             loss_v_new = tf.reduce_mean((ret - ac.v(obs))**2)
             kl = get_kl(obs)
             logger.store(LossPi=loss_pi, LossV=loss_v, 
-                         KL=kl, DeltaLossPi=(loss_pi_new - loss_pi),
+                         KL=kl, Entropy=ent,
+                         DeltaLossPi=(loss_pi_new - loss_pi),
                          DeltaLossV=(loss_v_new - loss_v))
 
     start_time = time.time()

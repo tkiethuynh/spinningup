@@ -2,27 +2,22 @@
 
 This project is a modernized version of OpenAI's Spinning Up in Deep RL. The codebase has been updated to use latest stable versions of all core libraries while maintaining the educational clarity of the original.
 
-## Modernization Standards
+### Framework-Specific Guidelines
 
-### Environment & API
-- **Gymnasium Integration:** The project is fully migrated to `gymnasium`. All environment interactions follow the modern API (`obs, reward, terminated, truncated, info`). Default environments have been updated to latest versions (e.g., `HalfCheetah-v5`, `CartPole-v1`).
-- **Python 3.10+:** The codebase targets modern Python features and standards.
-- **Strict Dependency Alignment:** Core libraries are pinned to mutually compatible versions (e.g., NumPy 1.26.4 and SciPy 1.12.0) to eliminate cross-library initialization warnings.
+#### PyTorch 2.x
+- **In-Place Updates**: Use `torch.no_grad()` and `target_param.copy_(polyak * target_param + (1 - polyak) * param)` for target network updates instead of deprecated `.data` attribute manipulation.
+- **Device Placement**: Always move models to the device returned by `get_torch_device()` and ensure input tensors are moved before inference, especially in testing utilities.
+- **Graph Optimization**: Support `torch.compile()` via a standard `--compile` flag in algorithm entry points.
 
-### Deep Learning Backends
-- **PyTorch 2.x:**
-    - Fully modernized algorithm implementations.
-    - Support for `torch.compile` via the `--compile` flag.
-    - Automatic GPU/CUDA acceleration.
-- **TensorFlow 2.x:**
-    - Complete migration from TF1 to TF2.
-    - Uses Keras models, Eager Execution, and `tf.GradientTape`.
-    - Fully GPU-enabled with native **TensorRT** support for hardware-level optimizations.
-- **Legacy TF1:** Preserved for historical reference but isolated to prevent system-wide library conflicts.
+#### TensorFlow 2.x
+- **Keras Serialization**: Always implement `get_config()` in subclassed `tf.keras.Model` classes. Ensure that complex objects like Gymnasium spaces are not serialized directly; store only necessary primitive parameters.
+- **Eager Logic**: Use `tf.GradientTape` for all training loops and wrap operations in `with tf.device(device):` contexts.
+- **Mathematical Precision**: Use explicit `entropy()` methods on actor models for exact calculations.
 
-### Device & Resource Management
-- **Automatic Device Selection:** Uses `spinup.utils.device_utils` for framework-agnostic GPU/CPU detection.
-- **MPI Support:** Maintained and modernized compatibility with MPI for parallel execution across both frameworks.
+### Logging & Utilities
+- **Robustness**: The `EpochLogger` is enhanced to handle empty data batches during epoch transitions without crashing.
+- **Model Restoration**: Use `restore_tf2_model` (Keras-native) for TF2 models and `restore_tf_graph` for legacy TF1 models.
+
 
 
 ## Project Standards

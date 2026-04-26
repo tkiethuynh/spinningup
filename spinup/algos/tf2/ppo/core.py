@@ -19,7 +19,21 @@ def mlp(input_dim, hidden_sizes=(32,), activation='tanh', output_activation=None
 class MLPCategoricalActor(tf.keras.Model):
     def __init__(self, obs_dim, act_dim, hidden_sizes, activation):
         super().__init__()
+        self.obs_dim = obs_dim
+        self.act_dim = act_dim
+        self.hidden_sizes = hidden_sizes
+        self.activation = activation
         self.logits_net = mlp(obs_dim, list(hidden_sizes) + [act_dim], activation)
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            "obs_dim": self.obs_dim,
+            "act_dim": self.act_dim,
+            "hidden_sizes": self.hidden_sizes,
+            "activation": self.activation,
+        })
+        return config
 
     def call(self, obs):
         return self.logits_net(obs)
@@ -37,8 +51,22 @@ class MLPCategoricalActor(tf.keras.Model):
 class MLPGaussianActor(tf.keras.Model):
     def __init__(self, obs_dim, act_dim, hidden_sizes, activation):
         super().__init__()
+        self.obs_dim = obs_dim
+        self.act_dim = act_dim
+        self.hidden_sizes = hidden_sizes
+        self.activation = activation
         self.mu_net = mlp(obs_dim, list(hidden_sizes) + [act_dim], activation)
         self.log_std = tf.Variable(initial_value=-0.5 * np.ones(act_dim, dtype=np.float32), trainable=True)
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            "obs_dim": self.obs_dim,
+            "act_dim": self.act_dim,
+            "hidden_sizes": self.hidden_sizes,
+            "activation": self.activation,
+        })
+        return config
 
     def call(self, obs):
         mu = self.mu_net(obs)
@@ -61,7 +89,19 @@ class MLPGaussianActor(tf.keras.Model):
 class MLPCritic(tf.keras.Model):
     def __init__(self, obs_dim, hidden_sizes, activation):
         super().__init__()
+        self.obs_dim = obs_dim
+        self.hidden_sizes = hidden_sizes
+        self.activation = activation
         self.v_net = mlp(obs_dim, list(hidden_sizes) + [1], activation)
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            "obs_dim": self.obs_dim,
+            "hidden_sizes": self.hidden_sizes,
+            "activation": self.activation,
+        })
+        return config
 
     def call(self, obs):
         return tf.squeeze(self.v_net(obs), axis=-1)
@@ -70,6 +110,10 @@ class MLPActorCritic(tf.keras.Model):
     def __init__(self, observation_space, action_space, 
                  hidden_sizes=(64,64), activation='tanh'):
         super().__init__()
+        self.observation_space = observation_space
+        self.action_space = action_space
+        self.hidden_sizes = hidden_sizes
+        self.activation = activation
 
         obs_dim = observation_space.shape[0]
 
@@ -81,6 +125,14 @@ class MLPActorCritic(tf.keras.Model):
 
         # build value function
         self.v  = MLPCritic(obs_dim, hidden_sizes, activation)
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            "hidden_sizes": self.hidden_sizes,
+            "activation": self.activation,
+        })
+        return config
 
     def call(self, obs):
         pi_out = self.pi(obs)

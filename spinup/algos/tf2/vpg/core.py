@@ -9,7 +9,7 @@ def combined_shape(length, shape=None):
     return (length, shape) if np.isscalar(shape) else (length, *shape)
 
 def mlp(input_dim, hidden_sizes=(32,), activation='tanh', output_activation=None):
-    model = tf.keras.Sequential()
+    model = tf.keras.Sequential(name='mlp')
     model.add(layers.Input(shape=(input_dim,)))
     for h in hidden_sizes[:-1]:
         model.add(layers.Dense(units=h, activation=activation))
@@ -19,7 +19,21 @@ def mlp(input_dim, hidden_sizes=(32,), activation='tanh', output_activation=None
 class MLPCategoricalActor(tf.keras.Model):
     def __init__(self, obs_dim, act_dim, hidden_sizes, activation):
         super().__init__()
+        self.obs_dim = obs_dim
+        self.act_dim = act_dim
+        self.hidden_sizes = hidden_sizes
+        self.activation = activation
         self.logits_net = mlp(obs_dim, list(hidden_sizes) + [act_dim], activation)
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            "obs_dim": self.obs_dim,
+            "act_dim": self.act_dim,
+            "hidden_sizes": self.hidden_sizes,
+            "activation": self.activation,
+        })
+        return config
 
     def call(self, obs):
         return self.logits_net(obs)
@@ -31,11 +45,28 @@ class MLPCategoricalActor(tf.keras.Model):
     def log_prob_from_distribution(self, logits, a):
         return tf.reduce_sum(tf.one_hot(a, depth=logits.shape[-1]) * tf.nn.log_softmax(logits), axis=1)
 
+    def entropy(self, logits):
+        return tf.reduce_sum(-tf.nn.softmax(logits) * tf.nn.log_softmax(logits), axis=1)
+
 class MLPGaussianActor(tf.keras.Model):
     def __init__(self, obs_dim, act_dim, hidden_sizes, activation):
         super().__init__()
+        self.obs_dim = obs_dim
+        self.act_dim = act_dim
+        self.hidden_sizes = hidden_sizes
+        self.activation = activation
         self.mu_net = mlp(obs_dim, list(hidden_sizes) + [act_dim], activation)
         self.log_std = tf.Variable(initial_value=-0.5 * np.ones(act_dim, dtype=np.float32), trainable=True)
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            "obs_dim": self.obs_dim,
+            "act_dim": self.act_dim,
+            "hidden_sizes": self.hidden_sizes,
+            "activation": self.activation,
+        })
+        return config
 
     def call(self, obs):
         mu = self.mu_net(obs)
@@ -51,10 +82,26 @@ class MLPGaussianActor(tf.keras.Model):
         pre_sum = -0.5 * (((a - mu) / (std + 1e-8))**2 + 2 * log_std + np.log(2 * np.pi))
         return tf.reduce_sum(pre_sum, axis=1)
 
+    def entropy(self, mu_std):
+        _, std = mu_std
+        return tf.reduce_sum(tf.math.log(std) + 0.5 * np.log(2 * np.pi * np.e), axis=1)
+
 class MLPCritic(tf.keras.Model):
     def __init__(self, obs_dim, hidden_sizes, activation):
         super().__init__()
+        self.obs_dim = obs_dim
+        self.hidden_sizes = hidden_sizes
+        self.activation = activation
         self.v_net = mlp(obs_dim, list(hidden_sizes) + [1], activation)
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            "obs_dim": self.obs_dim,
+            "hidden_sizes": self.hidden_sizes,
+            "activation": self.activation,
+        })
+        return config
 
     def call(self, obs):
         return tf.squeeze(self.v_net(obs), axis=-1)
@@ -63,6 +110,8 @@ class MLPActorCritic(tf.keras.Model):
     def __init__(self, observation_space, action_space, 
                  hidden_sizes=(64,64), activation='tanh'):
         super().__init__()
+        self.hidden_sizes = hidden_sizes
+        self.activation = activation
 
         obs_dim = observation_space.shape[0]
 
@@ -74,6 +123,14 @@ class MLPActorCritic(tf.keras.Model):
 
         # build value function
         self.v  = MLPCritic(obs_dim, hidden_sizes, activation)
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            "hidden_sizes": self.hidden_sizes,
+            "activation": self.activation,
+        })
+        return config
 
     def call(self, obs):
         pi_out = self.pi(obs)

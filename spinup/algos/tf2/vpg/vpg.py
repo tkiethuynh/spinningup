@@ -110,11 +110,13 @@ def vpg(env_fn: Callable[[], gym.Env],
         if isinstance(ac.pi, core.MLPCategoricalActor):
             logits = ac.pi(obs)
             logp = ac.pi.log_prob_from_distribution(logits, tf.cast(act, tf.int32))
+            ent = ac.pi.entropy(logits)
         else:
-            mu, std = ac.pi(obs)
-            logp = ac.pi.log_prob_from_distribution((mu, std), act)
+            mu_std = ac.pi(obs)
+            logp = ac.pi.log_prob_from_distribution(mu_std, act)
+            ent = ac.pi.entropy(mu_std)
         loss_pi = -tf.reduce_mean(logp * adv)
-        return loss_pi, logp
+        return loss_pi, logp, tf.reduce_mean(ent)
 
     @tf.function
     def compute_loss_v(obs, ret):
@@ -126,7 +128,7 @@ def vpg(env_fn: Callable[[], gym.Env],
         with tf.device(device):
             # Policy update
             with tf.GradientTape() as tape:
-                loss_pi, logp = compute_loss_pi(obs, act, adv)
+                loss_pi, logp, ent = compute_loss_pi(obs, act, adv)
             
             grads = tape.gradient(loss_pi, ac.pi.trainable_variables)
             pi_optimizer.apply_gradients(zip(grads, ac.pi.trainable_variables))
@@ -139,11 +141,11 @@ def vpg(env_fn: Callable[[], gym.Env],
                 vf_optimizer.apply_gradients(zip(grads, ac.v.trainable_variables))
 
             # Log changes
-            loss_pi_new, _ = compute_loss_pi(obs, act, adv)
+            loss_pi_new, _, _ = compute_loss_pi(obs, act, adv)
             loss_v_new = compute_loss_v(obs, ret)
             kl = tf.reduce_mean(logp_old - logp)
             logger.store(LossPi=loss_pi, LossV=loss_v, 
-                         KL=kl, Entropy=tf.reduce_mean(-logp), 
+                         KL=kl, Entropy=ent, 
                          DeltaLossPi=(loss_pi_new - loss_pi),
                          DeltaLossV=(loss_v_new - loss_v))
 

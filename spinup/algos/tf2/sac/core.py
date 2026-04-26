@@ -15,10 +15,25 @@ def mlp(input_dim, hidden_sizes=(32,), activation='relu', output_activation=None
 class SquashedGaussianMLPActor(tf.keras.Model):
     def __init__(self, obs_dim, act_dim, hidden_sizes, activation, act_limit):
         super().__init__()
+        self.obs_dim = obs_dim
+        self.act_dim = act_dim
+        self.hidden_sizes = hidden_sizes
+        self.activation = activation
+        self.act_limit = act_limit
         self.net = mlp(obs_dim, list(hidden_sizes), activation, activation)
         self.mu_layer = layers.Dense(act_dim)
         self.log_std_layer = layers.Dense(act_dim)
-        self.act_limit = act_limit
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            "obs_dim": self.obs_dim,
+            "act_dim": self.act_dim,
+            "hidden_sizes": self.hidden_sizes,
+            "activation": self.activation,
+            "act_limit": self.act_limit,
+        })
+        return config
 
     def call(self, obs, deterministic=False, with_logprob=True):
         net_out = self.net(obs)
@@ -45,10 +60,27 @@ class SquashedGaussianMLPActor(tf.keras.Model):
 
         return pi_action, logp_pi
 
+    def entropy(self, mu, std):
+        return tf.reduce_sum(tf.math.log(std) + 0.5 * np.log(2 * np.pi * np.e), axis=-1)
+
 class MLPQFunction(tf.keras.Model):
     def __init__(self, obs_dim, act_dim, hidden_sizes, activation):
         super().__init__()
+        self.obs_dim = obs_dim
+        self.act_dim = act_dim
+        self.hidden_sizes = hidden_sizes
+        self.activation = activation
         self.q = mlp(obs_dim + act_dim, list(hidden_sizes) + [1], activation, None)
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            "obs_dim": self.obs_dim,
+            "act_dim": self.act_dim,
+            "hidden_sizes": self.hidden_sizes,
+            "activation": self.activation,
+        })
+        return config
 
     def call(self, obs, act):
         q = self.q(tf.concat([obs, act], axis=-1))
@@ -58,6 +90,10 @@ class MLPActorCritic(tf.keras.Model):
     def __init__(self, observation_space, action_space, 
                  hidden_sizes=(256,256), activation='relu'):
         super().__init__()
+        self.observation_space = observation_space
+        self.action_space = action_space
+        self.hidden_sizes = hidden_sizes
+        self.activation = activation
 
         obs_dim = observation_space.shape[0]
         act_dim = action_space.shape[0]
@@ -67,6 +103,14 @@ class MLPActorCritic(tf.keras.Model):
         self.pi = SquashedGaussianMLPActor(obs_dim, act_dim, hidden_sizes, activation, act_limit)
         self.q1 = MLPQFunction(obs_dim, act_dim, hidden_sizes, activation)
         self.q2 = MLPQFunction(obs_dim, act_dim, hidden_sizes, activation)
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            "hidden_sizes": self.hidden_sizes,
+            "activation": self.activation,
+        })
+        return config
 
     def call(self, obs, act=None):
         pi_out, _ = self.pi(obs)
