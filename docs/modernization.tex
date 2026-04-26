@@ -49,6 +49,7 @@ The repository has transitioned from the legacy \texttt{gym} library to \texttt{
     \item Updated \texttt{env.step()} to handle the new return signature: \texttt{obs, reward, terminated, truncated, info}.
     \item Updated \texttt{env.reset()} to handle: \texttt{obs, info}.
     \item Replaced all \texttt{import gym} with \texttt{import gymnasium as gym}.
+    \item Standardized default environments to latest versions: \texttt{HalfCheetah-v5} and \texttt{CartPole-v1}.
 \end{itemize}
 
 \subsection{Framework Updates}
@@ -64,6 +65,7 @@ The repository has transitioned from the legacy \texttt{gym} library to \texttt{
     \item Complete migration from TensorFlow 1.x (Session/Placeholder based) to TensorFlow 2.x using Keras models and Eager Execution.
     \item Utilized \texttt{tf.GradientTape} for gradient calculation.
     \item Implemented custom MPI-aware optimizers compatible with TF2.
+    \item Resolved initialization factory registration and TensorRT conflicts.
 \end{itemize}
 
 \subsection{Device Management and GPU Acceleration}
@@ -79,8 +81,6 @@ A significant challenge in modernizing the repository was the version mismatch b
 This ensures that the repository remains "plug-and-play" across diverse Linux environments with standard NVIDIA drivers.
 
 \section{Usage and Performance}
-...
-\end{itemize}
 
 \subsection{Running on GPU}
 To run an algorithm on the GPU, simply use the provided CLI. The backends will automatically detect and use the most capable device.
