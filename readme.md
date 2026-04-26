@@ -33,16 +33,16 @@ This fork transforms the legacy Spinning Up codebase into a production-ready res
 conda create -n spinningup python=3.10
 conda activate spinningup
 
+# Install system dependencies (Ubuntu/Debian)
+sudo apt update && sudo apt install -y swig libopenmpi-dev
+
 # Clone the repository
 git clone https://github.com/tkiethuynh/spinningup.git
 cd spinningup
 
 # Install core package
 pip install -e .
-
-# [Recommended] Install MuJoCo and optimization libraries for GPU
-pip install "gymnasium[mujoco]" nvidia-tensorrt
-pip install "numpy==1.26.4" "scipy==1.12.0"
+pip install nvidia-tensorrt
 ```
 
 ## Hardware Acceleration
