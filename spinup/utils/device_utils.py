@@ -61,6 +61,49 @@ def setup_tf_gpu():
                             break
                         except Exception:
                             pass
+            
+            # Find and symlink libdevice.10.bc for XLA JIT compilation
+            home = os.path.expanduser("~")
+            tf_gpu_libs = os.path.join(home, "tf_gpu_libs")
+            nvvm_dir = os.path.join(tf_gpu_libs, "nvvm", "libdevice")
+            os.makedirs(nvvm_dir, exist_ok=True)
+            libdevice_dest = os.path.join(nvvm_dir, "libdevice.10.bc")
+            
+            if not os.path.exists(libdevice_dest):
+                if os.path.lexists(libdevice_dest):
+                    os.remove(libdevice_dest) # Remove broken symlink
+                    
+                for sp in active_site_packages:
+                    candidates = [
+                        os.path.join(sp, "triton", "third_party", "cuda", "lib", "libdevice.10.bc"),
+                        os.path.join(sp, "nvidia", "cuda_nvcc", "nvvm", "libdevice", "libdevice.10.bc")
+                    ]
+                    for cand in candidates:
+                        if os.path.exists(cand):
+                            os.symlink(cand, libdevice_dest)
+                            break
+                    if os.path.exists(libdevice_dest):
+                        break
+                        
+            if os.path.exists(libdevice_dest):
+                xla_flags = os.environ.get("XLA_FLAGS", "")
+                if "--xla_gpu_cuda_data_dir" not in xla_flags:
+                    os.environ["XLA_FLAGS"] = f"--xla_gpu_cuda_data_dir={tf_gpu_libs} {xla_flags}".strip()
+
+    # Ensure ptxas is in PATH for XLA JIT
+    for sp in active_site_packages:
+        ptxas_dir = os.path.join(sp, "triton", "third_party", "cuda", "bin")
+        if os.path.exists(os.path.join(ptxas_dir, "ptxas")):
+            current_path = os.environ.get("PATH", "")
+            if ptxas_dir not in current_path:
+                os.environ["PATH"] = f"{ptxas_dir}:{current_path}"
+            break
+        ptxas_dir2 = os.path.join(sp, "nvidia", "cuda_nvcc", "bin")
+        if os.path.exists(os.path.join(ptxas_dir2, "ptxas")):
+            current_path = os.environ.get("PATH", "")
+            if ptxas_dir2 not in current_path:
+                os.environ["PATH"] = f"{ptxas_dir2}:{current_path}"
+            break
 
 # Call setup BEFORE importing tensorflow
 setup_tf_gpu()

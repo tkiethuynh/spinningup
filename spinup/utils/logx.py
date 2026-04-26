@@ -194,7 +194,13 @@ class Logger:
             fpath = osp.join(self.output_dir, fpath)
             fname = 'model' + ('%d'%itr if itr is not None else '') + '.pt'
             os.makedirs(fpath, exist_ok=True)
-            torch.save(self.pytorch_saver_elements, osp.join(fpath, fname))
+            
+            # Extract original module if it was wrapped by torch.compile
+            model_to_save = self.pytorch_saver_elements
+            if hasattr(model_to_save, '_orig_mod'):
+                model_to_save = model_to_save._orig_mod
+                
+            torch.save(model_to_save, osp.join(fpath, fname))
 
     def log_tabular(self, key, val):
         """
