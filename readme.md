@@ -28,6 +28,10 @@ This fork transforms the legacy Spinning Up codebase into a production-ready res
 
 ### Setup
 ```bash
+# Create and activate conda environment
+conda create -n spinningup python=3.10
+conda activate spinningup
+
 # Clone the repository
 git clone https://github.com/tkiethuynh/spinningup.git
 cd spinningup
