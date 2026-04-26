@@ -7,8 +7,8 @@ import site
 def setup_tf_gpu():
     """
     Configures environment for TF GPU support.
-    Uses os.execv to restart the process with the correct LD_LIBRARY_PATH,
-    solving TensorFlow's strict library loading requirements.
+    Uses ctypes to pre-load NVIDIA libraries into the global symbol table,
+    solving the LD_LIBRARY_PATH restriction in existing processes.
     """
     # Suppress TensorFlow C++ logging to solve noisy initialization warnings (Factory already registered)
     if 'TF_CPP_MIN_LOG_LEVEL' not in os.environ:
@@ -36,57 +36,31 @@ def setup_tf_gpu():
                 lib_dirs.append(os.path.join(root, 'lib'))
         
         if lib_dirs:
-            home = os.path.expanduser("~")
-            tf_gpu_libs = os.path.join(home, "tf_gpu_libs")
-            os.makedirs(tf_gpu_libs, exist_ok=True)
-            
-            # Mapping of available versions to TF 2.15 expected versions
-            mappings = {
-                'cuda_runtime/lib/libcudart.so.12': 'libcudart.so.11.0',
-                'cuda_runtime/lib/libcudart.so.13': 'libcudart.so.11.0',
-                'cublas/lib/libcublas.so.12': 'libcublas.so.11',
-                'cublas/lib/libcublas.so.13': 'libcublas.so.11',
-                'cublas/lib/libcublasLt.so.12': 'libcublasLt.so.11',
-                'cublas/lib/libcublasLt.so.13': 'libcublasLt.so.11',
-                'cudnn/lib/libcudnn.so.9': 'libcudnn.so.8',
-                'cufft/lib/libcufft.so.11': 'libcufft.so.10',
-                'cufft/lib/libcufft.so.12': 'libcufft.so.10',
-                'curand/lib/libcurand.so.10': 'libcurand.so.10',
-                'cusolver/lib/libcusolver.so.11': 'libcusolver.so.11',
-                'cusolver/lib/libcusolver.so.12': 'libcusolver.so.11',
-                'cusparse/lib/libcusparse.so.12': 'libcusparse.so.11',
-                'cusparse/lib/libcusparse.so.13': 'libcusparse.so.11',
-            }
-            
-            for src_sub, dest_name in mappings.items():
-                for lib_dir in lib_dirs:
-                    if "nvidia" in lib_dir:
-                        possible_src = os.path.join(os.path.dirname(lib_dir), os.path.basename(src_sub))
-                        if os.path.exists(possible_src):
-                            dest = os.path.join(tf_gpu_libs, dest_name)
-                            if not os.path.exists(dest):
-                                try:
-                                    os.symlink(possible_src, dest)
-                                except FileExistsError:
-                                    pass
-                            break
-            
-            lib_dirs.insert(0, tf_gpu_libs)
-            new_ld = ":".join(lib_dirs)
             current_ld = os.environ.get('LD_LIBRARY_PATH', '')
+            os.environ['LD_LIBRARY_PATH'] = ":".join(lib_dirs) + (":" + current_ld if current_ld else "")
             
-            if "SPINUP_TF_GPU_CONFIGURED" not in os.environ:
-                os.environ["SPINUP_TF_GPU_CONFIGURED"] = "1"
-                if new_ld not in current_ld:
-                    os.environ["LD_LIBRARY_PATH"] = new_ld + (":" + current_ld if current_ld else "")
-                    
-                    # Ensure python doesn't get confused if run as a module vs script
-                    if sys.argv[0] == '-m':
-                        pass # Cannot easily execv with -m, fallback to just setting env (unlikely here since spinup/__init__ changes sys.argv)
-                    elif sys.argv[0].endswith('pytest'):
-                        pass # Don't execv in pytest, let the user set it or rely on fallback
-                    else:
-                        os.execv(sys.executable, [sys.executable] + sys.argv)
+            # To ensure the current process sees them, use ctypes RTLD_GLOBAL
+            import ctypes
+            core_libs = [
+                'libcudart.so.11.0', 
+                'libcublas.so.11', 
+                'libcublasLt.so.11', 
+                'libcudnn.so.8', 
+                'libcufft.so.10', 
+                'libcurand.so.10', 
+                'libcusolver.so.11', 
+                'libcusparse.so.11'
+            ]
+            
+            for lib_name in core_libs:
+                for lib_dir in lib_dirs:
+                    full_path = os.path.join(lib_dir, lib_name)
+                    if os.path.exists(full_path):
+                        try:
+                            ctypes.CDLL(full_path, mode=ctypes.RTLD_GLOBAL)
+                            break
+                        except Exception:
+                            pass
 
 # Call setup BEFORE importing tensorflow
 setup_tf_gpu()

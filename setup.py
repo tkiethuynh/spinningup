@@ -27,7 +27,7 @@ setup(
         'scipy==1.12.0',
         'seaborn',
         'tensorflow==2.15.0',
-        'torch>=2.0',
+        'torch==2.1.2',
         'tqdm',
         'six',
         'pyparsing',
