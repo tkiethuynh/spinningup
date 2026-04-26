@@ -265,7 +265,7 @@ You can get actions from this model with
 Documentation: Tensorflow Version
 ---------------------------------
 
-.. autofunction:: spinup.sac_tf1
+.. autofunction:: spinup.sac_tf2
 
 Saved Model Contents: Tensorflow Version
 ----------------------------------------

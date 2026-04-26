@@ -2,10 +2,10 @@ import os
 import os.path as osp
 
 # Default neural network backend for each algo
-# (Must be either 'tf1', 'tf2', or 'pytorch')
+# (Must be either 'tf2' or 'pytorch')
 DEFAULT_BACKEND = {
     'vpg': 'pytorch',
-    'trpo': 'tf1',
+    'trpo': 'tf2',
     'ppo': 'pytorch',
     'ddpg': 'pytorch',
     'td3': 'pytorch',

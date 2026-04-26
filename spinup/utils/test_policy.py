@@ -5,26 +5,20 @@ import os.path as osp
 import tensorflow as tf
 import torch
 from spinup import EpochLogger
-from spinup.utils.logx import restore_tf_graph
 from spinup.utils.device_utils import get_torch_device
 
 
 def load_policy_and_env(fpath, itr='last', deterministic=False):
     """
-    Load a policy from save, whether it's TF or PyTorch, along with RL env.
+    Load a policy from save, whether it's TF2 or PyTorch, along with RL env.
 
-    Not exceptionally future-proof, but it will suffice for basic uses of the 
-    Spinning Up implementations.
-
-    Checks to see if there's a tf1_save folder. If yes, assumes the model
+    Checks to see if there's a tf2_save folder. If yes, assumes the model
     is tensorflow and loads it that way. Otherwise, loads as if there's a 
     PyTorch save.
     """
 
-    # determine if tf save or pytorch save
-    if any(['tf1_save' in x for x in os.listdir(fpath)]):
-        backend = 'tf1'
-    elif any(['tf2_save' in x for x in os.listdir(fpath)]):
+    # determine if tf2 save or pytorch save
+    if any(['tf2_save' in x for x in os.listdir(fpath)]):
         backend = 'tf2'
     else:
         backend = 'pytorch'
@@ -33,9 +27,7 @@ def load_policy_and_env(fpath, itr='last', deterministic=False):
     if itr=='last':
         # check filenames for epoch (AKA iteration) numbers, find maximum value
 
-        if backend == 'tf1':
-            saves = [int(x[8:]) for x in os.listdir(fpath) if 'tf1_save' in x and len(x)>8]
-        elif backend == 'tf2':
+        if backend == 'tf2':
             tf2save_path = osp.join(fpath, 'tf2_save')
             saves = [int(x[5:]) for x in os.listdir(tf2save_path) if len(x)>5 and 'model' in x]
         elif backend == 'pytorch':
@@ -53,9 +45,7 @@ def load_policy_and_env(fpath, itr='last', deterministic=False):
         itr = '%d'%itr
 
     # load the get_action function
-    if backend == 'tf1':
-        get_action = load_tf_policy(fpath, itr, deterministic)
-    elif backend == 'tf2':
+    if backend == 'tf2':
         get_action = load_tf2_policy(fpath, itr, deterministic)
     else:
         get_action = load_pytorch_policy(fpath, itr, deterministic)
@@ -69,31 +59,6 @@ def load_policy_and_env(fpath, itr='last', deterministic=False):
         env = None
 
     return env, get_action
-
-
-def load_tf_policy(fpath, itr, deterministic=False):
-    """ Load a tensorflow policy saved with Spinning Up Logger."""
-
-    fname = osp.join(fpath, 'tf1_save'+itr)
-    print('\n\nLoading from %s.\n\n'%fname)
-
-    # load the things!
-    sess = tf.Session()
-    model = restore_tf_graph(sess, fname)
-
-    # get the correct op for executing actions
-    if deterministic and 'mu' in model.keys():
-        # 'deterministic' is only a valid option for SAC policies
-        print('Using deterministic action op.')
-        action_op = model['mu']
-    else:
-        print('Using default action op.')
-        action_op = model['pi']
-
-    # make function for producing an action given a single state
-    get_action = lambda x : sess.run(action_op, feed_dict={model['x']: x[None,:]})[0]
-
-    return get_action
 
 
 def load_tf2_policy(fpath, itr, deterministic=False):

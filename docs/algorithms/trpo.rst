@@ -156,10 +156,9 @@ Documentation
 
 .. admonition:: You Should Know
 
-    Spinning Up currently only has a Tensorflow implementation of TRPO. 
+    Spinning Up has both PyTorch and Tensorflow 2 implementations of TRPO.
 
-.. autofunction:: spinup.trpo_tf1
-
+    .. autofunction:: spinup.trpo_tf2
 
 Saved Model Contents
 --------------------

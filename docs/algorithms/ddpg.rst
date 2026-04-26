@@ -198,7 +198,7 @@ You can get actions from this model with
 Documentation: Tensorflow Version
 ---------------------------------
 
-.. autofunction:: spinup.ddpg_tf1
+.. autofunction:: spinup.ddpg_tf2
 
 Saved Model Contents: Tensorflow Version
 ----------------------------------------

@@ -165,7 +165,7 @@ You can get actions from this model with
 Documentation: Tensorflow Version
 ---------------------------------
 
-.. autofunction:: spinup.td3_tf1
+.. autofunction:: spinup.td3_tf2
 
 Saved Model Contents: Tensorflow Version
 ----------------------------------------

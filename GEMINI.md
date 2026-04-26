@@ -16,7 +16,7 @@ This project is a modernized version of OpenAI's Spinning Up in Deep RL. The cod
 
 ### Logging & Utilities
 - **Robustness**: The `EpochLogger` is enhanced to handle empty data batches during epoch transitions without crashing.
-- **Model Restoration**: Use `restore_tf2_model` (Keras-native) for TF2 models and `restore_tf_graph` for legacy TF1 models.
+- **Model Restoration**: Use `restore_tf2_model` (Keras-native) for TF2 models.
 
 
 

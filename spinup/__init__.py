@@ -2,18 +2,6 @@
 from spinup.utils.device_utils import setup_tf_gpu
 setup_tf_gpu()
 
-# Algorithms
-try:
-    from spinup.algos.tf1.ddpg.ddpg import ddpg as ddpg_tf1
-    from spinup.algos.tf1.ppo.ppo import ppo as ppo_tf1
-    from spinup.algos.tf1.sac.sac import sac as sac_tf1
-    from spinup.algos.tf1.td3.td3 import td3 as td3_tf1
-    from spinup.algos.tf1.trpo.trpo import trpo as trpo_tf1
-    from spinup.algos.tf1.vpg.vpg import vpg as vpg_tf1
-except ImportError:
-    # TensorFlow 1.x algorithms not available
-    pass
-
 # TF2 Algorithms
 try:
     from spinup.algos.tf2.vpg.vpg import vpg as vpg_tf2
@@ -22,7 +10,6 @@ try:
     from spinup.algos.tf2.td3.td3 import td3 as td3_tf2
     from spinup.algos.tf2.sac.sac import sac as sac_tf2
     from spinup.algos.tf2.trpo.trpo import trpo as trpo_tf2
-    # Add others as they are migrated
 except ImportError:
     pass
 

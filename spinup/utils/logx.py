@@ -44,35 +44,6 @@ def colorize(string, color, bold=False, highlight=False):
     if bold: attr.append('1')
     return '\x1b[%sm%s\x1b[0m' % (';'.join(attr), string)
 
-def restore_tf_graph(sess, fpath):
-    """
-    Loads graphs saved by Logger.
-
-    Will output a dictionary whose keys and values are from the 'inputs' 
-    and 'outputs' dict you specified with logger.setup_tf_saver().
-
-    Args:
-        sess: A Tensorflow session.
-        fpath: Filepath to save directory.
-
-    Returns:
-        A dictionary mapping from keys to tensors in the computation graph
-        loaded from ``fpath``. 
-    """
-    if tf is None:
-        raise ImportError("TensorFlow is not installed or could not be loaded.")
-    tf.saved_model.loader.load(
-                sess,
-                [tf.saved_model.tag_constants.SERVING],
-                fpath
-            )
-    model_info = joblib.load(osp.join(fpath, 'model_info.pkl'))
-    graph = tf.get_default_graph()
-    model = dict()
-    for key, value in model_info.items():
-        model[key] = graph.get_tensor_by_name(value)
-    return model
-
 def restore_tf2_model(fpath):
     """
     Loads a TF2 model saved by Logger.
@@ -170,48 +141,11 @@ class Logger:
                 joblib.dump(state_dict, osp.join(self.output_dir, fname))
             except:
                 self.log('Warning: could not pickle state_dict.', color='red')
-            if hasattr(self, 'tf_saver_elements'):
-                self._tf_simple_save(itr)
             if hasattr(self, 'tf2_saver_elements'):
                 self._tf2_simple_save(itr)
             if hasattr(self, 'pytorch_saver_elements'):
                 self._pytorch_simple_save(itr)
 
-    def setup_tf_saver(self, sess, inputs, outputs):
-        """
-        Set up easy model saving for a single-input, single-output TF graph.
-
-        Args:
-            sess: The Tensorflow session in which the graph is run.
-            inputs (dict): A dictionary that maps from keys of your choice
-                to the input placeholders of your graph.
-            outputs (dict): A dictionary that maps from keys of your choice
-                to the output tensors of your graph.
-        """
-        self.tf_saver_elements = dict(inputs=inputs, outputs=outputs)
-        self.tf_saver_info = {k: v.name for k,v in inputs.items()}
-        self.tf_saver_info.update({k: v.name for k,v in outputs.items()})
-
-    def _tf_simple_save(self, itr=None):
-        """
-        Uses simple_save to save a trained model, plus info to make it easy
-        to associated tensors to variables after restore. 
-        """
-        if proc_id()==0:
-            if tf is None:
-                self.log('Warning: TensorFlow not found, skipping save.', color='red')
-                return
-            assert hasattr(self, 'tf_saver_elements'), \
-                "First have to setup saving with self.setup_tf_saver"
-            fpath = 'tf1_save' + ('%d'%itr if itr is not None else '')
-            fpath = osp.join(self.output_dir, fpath)
-            if osp.exists(fpath):
-                # simple_save refuses to be useful if fpath already exists,
-                # so just delete fpath if it's there.
-                shutil.rmtree(fpath)
-            tf.saved_model.simple_save(export_dir=fpath, **self.tf_saver_elements)
-            joblib.dump(self.tf_saver_info, osp.join(fpath, 'model_info.pkl'))
-    
     def setup_tf2_saver(self, what_to_save):
         """
         Set up easy model saving for a single TF2 model.

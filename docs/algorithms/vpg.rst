@@ -110,7 +110,7 @@ You can get actions from this model with
 Documentation: Tensorflow Version
 ---------------------------------
 
-.. autofunction:: spinup.vpg_tf1
+.. autofunction:: spinup.vpg_tf2
 
 Saved Model Contents: Tensorflow Version
 ----------------------------------------

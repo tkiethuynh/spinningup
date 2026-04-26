@@ -177,7 +177,7 @@ You can get actions from this model with
 Documentation: Tensorflow Version
 ---------------------------------
 
-.. autofunction:: spinup.ppo_tf1
+.. autofunction:: spinup.ppo_tf2
 
 Saved Model Contents: Tensorflow Version
 ----------------------------------------

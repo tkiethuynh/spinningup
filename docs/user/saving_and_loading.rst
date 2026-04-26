@@ -27,7 +27,7 @@ Each algorithm is set up to save a training run's hyperparameter configuration, 
 |                | | everything needed to restore the trained agent and value    |
 |                | | functions. (`Details for PyTorch saves below.`_)            |
 +----------------+---------------------------------------------------------------+
-|``tf1_save/``   | | **Tensorflow implementations only.** A directory containing |
+|``tf2_save/``   | | **Tensorflow implementations only.** A directory containing |
 |                | | everything needed to restore the trained agent and value    |
 |                | | functions. (`Details for Tensorflow saves below.`_)         |
 +----------------+---------------------------------------------------------------+
@@ -54,11 +54,11 @@ Each algorithm is set up to save a training run's hyperparameter configuration, 
 
 .. admonition:: You Should Know
 
-    As of 1/30/20, the save directory structure has changed slightly. Previously, Tensorflow graphs were saved in the ``simple_save/`` folder; this has been replaced with ``tf1_save/``.
+    As of 1/30/20, the save directory structure has changed slightly. Previously, Tensorflow graphs were saved in the ``simple_save/`` folder; this has been replaced with ``tf2_save/`` for TensorFlow 2.x models.
 
 .. admonition:: You Should Know
 
-    The only file in here that you should ever have to use "by hand" is the ``config.json`` file. Our agent testing utility will load things from the ``tf1_save/`` or ``pyt_save/`` directory, and our plotter interprets the contents of ``progress.txt``, and those are the correct tools for interfacing with these outputs. But there is no tooling for ``config.json``---it's just there so that if you forget what hyperparameters you ran an experiment with, you can double-check.
+    The only file in here that you should ever have to use "by hand" is the ``config.json`` file. Our agent testing utility will load things from the ``tf2_save/`` or ``pyt_save/`` directory, and our plotter interprets the contents of ``progress.txt``, and those are the correct tools for interfacing with these outputs. But there is no tooling for ``config.json``---it's just there so that if you forget what hyperparameters you ran an experiment with, you can double-check.
 
 
 
@@ -82,18 +82,13 @@ Tensorflow Save Directory Info
 ------------------------------
 .. _`Details for Tensorflow saves below.`:
 
-The ``tf1_save`` directory contains:
+The ``tf2_save`` directory contains:
 
 +----------------------------------------------------------------------------------+
-| **TF1_Save Directory Structure**                                                 |
+| **TF2_Save Directory Structure**                                                 |
 +------------------+---------------------------------------------------------------+
-|``variables/``    | | A directory containing outputs from the Tensorflow Saver.   |
+|``model/``        | | A directory containing outputs from the Keras model save.   |
 |                  | | See documentation for `Tensorflow SavedModel`_.             |
-+------------------+---------------------------------------------------------------+
-|``model_info.pkl``| | A dict containing information (map from key to tensor name) |
-|                  | | which helps us unpack the saved model after loading.        |
-+------------------+---------------------------------------------------------------+
-|``saved_model.pb``| | A protocol buffer, needed for a `Tensorflow SavedModel`_.   |
 +------------------+---------------------------------------------------------------+
 
 
