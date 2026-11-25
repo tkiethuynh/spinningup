@@ -88,6 +88,29 @@ def restore_tf2_model(fpath):
         return tf.keras.models.load_model(fpath, compile=False)
 
 
+def _extract_env_meta(env):
+    """Extract lightweight metadata sufficient to reconstruct a Gymnasium env."""
+    spec = getattr(env, "spec", None)
+    if spec is None or getattr(spec, "id", None) is None:
+        return None
+    obs_space = getattr(env, "observation_space", None)
+    unwrapped = getattr(env, "unwrapped", None)
+    unwrapped_obs = getattr(unwrapped, "observation_space", None) if unwrapped is not None else None
+    flatten_obs = (
+        obs_space is not None
+        and getattr(obs_space, "shape", None) is not None
+        and len(obs_space.shape) == 1
+        and unwrapped_obs is not None
+        and getattr(unwrapped_obs, "shape", None) is not None
+        and len(unwrapped_obs.shape) > 1
+    )
+    return {
+        "id": spec.id,
+        "kwargs": dict(getattr(spec, "kwargs", {}) or {}),
+        "flatten_obs": bool(flatten_obs),
+    }
+
+
 class Logger:
     """
     A general-purpose logger.
@@ -166,10 +189,31 @@ class Logger:
         """
         if proc_id() == 0:
             fname = 'vars.pkl' if itr is None else 'vars%d.pkl' % itr
+            fpath = osp.join(self.output_dir, fname)
+            tmp_fpath = fpath + '.tmp'
+            to_save = dict(state_dict)
+            if 'env' in to_save and 'env_meta' not in to_save:
+                env_meta = _extract_env_meta(to_save['env'])
+                if env_meta is not None:
+                    to_save['env_meta'] = env_meta
             try:
-                joblib.dump(state_dict, osp.join(self.output_dir, fname))
+                joblib.dump(to_save, tmp_fpath)
+                os.replace(tmp_fpath, fpath)
             except Exception as exc:
-                self.log(f'Warning: could not pickle state_dict ({exc}).', color='red')
+                if osp.exists(tmp_fpath):
+                    os.remove(tmp_fpath)
+                fallback = {k: v for k, v in to_save.items() if k != 'env'}
+                if 'env_meta' in fallback:
+                    try:
+                        joblib.dump(fallback, tmp_fpath)
+                        os.replace(tmp_fpath, fpath)
+                        self.log('Note: env was not directly picklable; saved env_meta for automatic reconstruction.', color='yellow')
+                    except Exception as inner_exc:
+                        if osp.exists(tmp_fpath):
+                            os.remove(tmp_fpath)
+                        self.log(f'Warning: could not pickle state_dict ({inner_exc}).', color='red')
+                else:
+                    self.log(f'Warning: could not pickle state_dict ({exc}).', color='red')
             if hasattr(self, 'tf2_saver_elements'):
                 self._tf2_simple_save(itr)
             if hasattr(self, 'pytorch_saver_elements'):

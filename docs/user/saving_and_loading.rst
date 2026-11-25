@@ -171,6 +171,10 @@ There are a few flags for options:
 
     Another special case, which is only used for SAC. The Spinning Up SAC implementation trains a stochastic policy, but is evaluated using the deterministic *mean* of the action distribution. ``test_policy`` will default to using the stochastic policy trained by SAC, but you should set the deterministic flag to watch the deterministic mean policy (the correct evaluation policy for SAC). This flag is not used for any other algorithms.
 
+.. option:: --save_video DIR
+
+    Optional directory to save animated GIF recordings of evaluation episodes (``episode_0.gif``, ``episode_1.gif``, ...; defaults to 3 episodes when ``--episodes`` is not specified). Useful on headless SSH sessions where no GUI display is available. Note: when running on Linux without ``DISPLAY`` or ``WAYLAND_DISPLAY`` and without ``--save_video``, ``test_policy`` automatically skips live window rendering instead of crashing and prints episode returns to the terminal.
+
 
 
 Environment Not Found Error

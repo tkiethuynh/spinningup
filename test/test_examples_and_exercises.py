@@ -1,6 +1,9 @@
 import importlib
 from functools import partial
 import os
+import subprocess
+import sys
+import warnings
 
 import gymnasium as gym
 import numpy as np
@@ -15,9 +18,13 @@ from spinup.exercises.pytorch.problem_set_2 import exercise2_2
 from spinup.utils import mpi_tools
 from spinup.utils.device_utils import get_tf_device, get_torch_device, setup_tf_gpu
 from spinup.utils.run_utils import _make_env
+from spinup.utils.test_policy import load_policy_and_env
 
 
-def test_pg_math_examples():
+def test_pg_math_examples(monkeypatch):
+    monkeypatch.delenv("DISPLAY", raising=False)
+    monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
+
     mod1 = importlib.import_module("spinup.examples.pytorch.pg_math.1_simple_pg")
     mod2 = importlib.import_module("spinup.examples.pytorch.pg_math.2_rtg_pg")
     mod1.train(env_name="CartPole-v1", epochs=2, batch_size=200)
@@ -27,6 +34,34 @@ def test_pg_math_examples():
     tf_mod2 = importlib.import_module("spinup.examples.tf2.pg_math.2_rtg_pg")
     tf_mod1.train(env_name="CartPole-v1", epochs=2, batch_size=200)
     tf_mod2.train(env_name="CartPole-v1", epochs=2, batch_size=200)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", UserWarning)
+        mod1.train(env_name="CartPole-v1", epochs=1, batch_size=50, render=True)
+        tf_mod1.train(env_name="CartPole-v1", epochs=1, batch_size=50, render=True)
+
+
+def test_run_cli_parsing_edge_cases(tmp_path):
+    for exp_name in ("dir", "123"):
+        data_dir = tmp_path / "my--runs"
+        cli_args = [
+            "ppo",
+            "--env", "CartPole-v1",
+            "--exp_name", exp_name,
+            "--hid", "[16]",
+            "--epochs", "1",
+            "--steps", "40",
+            "--max_ep_len", "20",
+            "--data_dir", str(data_dir),
+        ]
+        script = (
+            "import sys, spinup.user_config as uc; uc.WAIT_BEFORE_LAUNCH = 0; "
+            f"sys.argv = ['spinup/run.py'] + {cli_args!r}; "
+            "import runpy; runpy.run_module('spinup.run', run_name='__main__')"
+        )
+        proc = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, check=False)
+        assert proc.returncode == 0, f"STDOUT:\n{proc.stdout}\nSTDERR:\n{proc.stderr}"
+        assert (data_dir / exp_name / f"{exp_name}_s0" / "progress.txt").exists()
 
 
 def test_exercise_solutions_and_bugged(tmp_path):
@@ -145,6 +180,23 @@ def test_atari_pong_smoke(tmp_path):
     next_obs, _, _, _, _ = env_px.step(env_px.action_space.sample())
     assert next_obs.shape == obs.shape
     env_px.close()
+
+    # Flattened pixel Atari env must save env_meta fallback cleanly and reload via test_policy
+    px_dir = tmp_path / "pong_px"
+    ppo_pytorch(
+        env_fn=partial(_make_env, "ALE/Pong-v5"),
+        ac_kwargs=dict(hidden_sizes=(16,)),
+        steps_per_epoch=40,
+        epochs=1,
+        max_ep_len=20,
+        logger_kwargs=dict(output_dir=str(px_dir), exp_name="pong_px"),
+    )
+    loaded_env, get_act = load_policy_and_env(str(px_dir), deterministic=True)
+    assert loaded_env is not None
+    o_px, _ = loaded_env.reset(seed=0)
+    a_px = get_act(o_px)
+    loaded_env.step(a_px)
+    loaded_env.close()
 
 
 def test_mujoco_v5_algos_and_convergence(tmp_path):

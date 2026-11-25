@@ -176,6 +176,12 @@ def sac(env_fn: Callable[[], gym.Env],
     np.random.seed(seed)
 
     env, test_env = env_fn(), env_fn()
+    if not isinstance(env.action_space, gym.spaces.Box):
+        raise ValueError(
+            f"SAC requires a continuous (gymnasium.spaces.Box) action space, "
+            f"got {type(env.action_space).__name__} ({env.action_space}). "
+            f"For discrete action spaces, use vpg, trpo, or ppo."
+        )
     obs_dim = env.observation_space.shape
     act_dim = env.action_space.shape[0]
 
@@ -367,10 +373,10 @@ if __name__ == '__main__':
     parser.add_argument('--device', type=str, default='cpu')
     args = parser.parse_args()
 
-    from spinup.utils.run_utils import setup_logger_kwargs
+    from spinup.utils.run_utils import _make_env, setup_logger_kwargs
     logger_kwargs = setup_logger_kwargs(args.exp_name, args.seed)
 
-    sac(lambda: gym.make(args.env), actor_critic=core.MLPActorCritic,
+    sac(lambda: _make_env(args.env), actor_critic=core.MLPActorCritic,
         ac_kwargs=dict(hidden_sizes=[args.hid] * args.l),
         gamma=args.gamma, seed=args.seed, epochs=args.epochs,
         logger_kwargs=logger_kwargs, device=args.device)

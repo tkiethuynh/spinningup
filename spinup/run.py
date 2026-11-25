@@ -3,6 +3,7 @@ from spinup.user_config import DEFAULT_BACKEND
 from spinup.utils.run_utils import ExperimentGrid, _resolve_env_name
 from spinup.utils.serialization_utils import convert_json
 import argparse
+import ast
 import gymnasium as gym
 import json
 import os, subprocess, sys
@@ -29,6 +30,9 @@ MPI_COMPATIBLE_ALGOS = ['vpg', 'trpo', 'ppo']
 
 # Algo names (used in a few places)
 BASE_ALGO_NAMES = ['vpg', 'trpo', 'ppo', 'ddpg', 'td3', 'sac']
+
+# Flags whose values must always remain raw strings (never evaluated as Python expressions).
+STRING_ONLY_KEYS = {'exp_name', 'data_dir', 'env', 'env_name', 'device'}
 
 
 def add_with_backends(algo_list):
@@ -62,11 +66,26 @@ def parse_and_execute_grid_search(cmd, args):
         sys.exit()
 
     def process(arg):
-        # Process an arg by eval-ing it, so users can specify more
-        # than just strings at the command line (eg allows for
-        # users to give functions as args).
-        ns = {}
-        if isinstance(arg, str):
+        # Safely parse Python literals (numbers, lists, bools) while keeping
+        # plain strings and avoiding builtin function collisions (e.g. 'dir').
+        if not isinstance(arg, str):
+            return arg
+        try:
+            return ast.literal_eval(arg)
+        except (ValueError, SyntaxError):
+            pass
+
+        if any(tok in arg for tok in ('torch', 'tf', 'dict(')):
+            ns = {
+                '__builtins__': {
+                    'dict': dict,
+                    'list': list,
+                    'tuple': tuple,
+                    'True': True,
+                    'False': False,
+                    'None': None,
+                }
+            }
             if 'torch' in arg:
                 import torch
                 ns['torch'] = torch
@@ -75,23 +94,26 @@ def parse_and_execute_grid_search(cmd, args):
                 setup_tf_gpu()
                 import tensorflow as tf
                 ns['tf'] = tf
-        try:
-            return eval(arg, ns)
-        except Exception:
-            return arg
+            try:
+                return eval(arg, ns)
+            except Exception:
+                return arg
+        return arg
 
     # Make first pass through args to build base arg_dict. Anything
-    # with a '--' in front of it is an argument flag and everything after,
+    # starting with '--' is an argument flag and everything after,
     # until the next flag, is a possible value.
     arg_dict = dict()
     for i, arg in enumerate(args):
-        assert i > 0 or '--' in arg, \
+        assert i > 0 or arg.startswith('--'), \
             friendly_err("You didn't specify a first flag.")
-        if '--' in arg:
+        if arg.startswith('--'):
             arg_key = arg.lstrip('-')
             arg_dict[arg_key] = []
         else:
-            arg_dict[arg_key].append(process(arg))
+            base_key = arg_key.split('[', 1)[0]
+            val = arg if base_key in STRING_ONLY_KEYS else process(arg)
+            arg_dict[arg_key].append(val)
 
     # Make second pass through, to catch flags that have no vals.
     # Assume such flags indicate that a boolean parameter should have

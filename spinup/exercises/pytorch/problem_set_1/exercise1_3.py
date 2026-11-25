@@ -299,10 +299,7 @@ def td3(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
             # Finally, update target networks by polyak averaging.
             with torch.no_grad():
                 for p, p_targ in zip(ac.parameters(), ac_targ.parameters()):
-                    # NB: We use an in-place operations "mul_", "add_" to update target
-                    # params, as opposed to "mul" and "add", which would make new tensors.
-                    p_targ.data.mul_(polyak)
-                    p_targ.data.add_((1 - polyak) * p.data)
+                    p_targ.copy_(polyak * p_targ + (1 - polyak) * p)
 
     def get_action(o, noise_scale):
         a = ac.act(torch.as_tensor(o, dtype=torch.float32))
@@ -323,7 +320,10 @@ def td3(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
     # Prepare for interaction with environment
     total_steps = steps_per_epoch * epochs
     start_time = time.time()
-    (o, _), ep_ret, ep_len = env.reset(), 0, 0
+    (o, _), ep_ret, ep_len = env.reset(seed=seed), 0, 0
+    env.action_space.seed(seed)
+    test_env.reset(seed=seed + 10000)
+    test_env.action_space.seed(seed + 10000)
 
     # Main loop: collect experience in env and update/log each epoch
     for t in range(total_steps):

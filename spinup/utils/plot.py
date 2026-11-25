@@ -1,9 +1,11 @@
 import seaborn as sns
 import pandas as pd
+import matplotlib
 import matplotlib.pyplot as plt
 import json
 import os
 import os.path as osp
+import sys
 import numpy as np
 
 DIV_LINE_WIDTH = 50
@@ -11,6 +13,16 @@ DIV_LINE_WIDTH = 50
 # Global vars for tracking and labeling data at load time.
 exp_idx = 0
 units = dict()
+
+
+def _is_interactive_backend():
+    """Return True if Matplotlib can open interactive GUI windows."""
+    if sys.platform.startswith("linux") and not (
+        os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")
+    ):
+        return False
+    backend = matplotlib.get_backend().lower()
+    return backend not in {"agg", "cairo", "pdf", "pgf", "ps", "svg", "template"}
 
 
 def plot_data(data, xaxis='Epoch', value="AverageEpRet", condition="Condition1", smooth=1, font_scale=1.5, **kwargs):
@@ -23,9 +35,15 @@ def plot_data(data, xaxis='Epoch', value="AverageEpRet", condition="Condition1",
         """
         y = np.ones(smooth)
         for datum in data:
-            x = np.asarray(datum[value])
-            z = np.ones(len(x))
-            smoothed_x = np.convolve(x, y, 'same') / np.convolve(z, y, 'same')
+            x = np.asarray(datum[value], dtype=np.float64)
+            finite = np.isfinite(x)
+            x_safe = np.where(finite, x, 0.0)
+            counts = np.convolve(finite.astype(np.float64), y, 'same')
+            smoothed_x = np.where(
+                counts > 0,
+                np.convolve(x_safe, y, 'same') / np.maximum(counts, 1.0),
+                np.nan,
+            )
             datum[value] = smoothed_x
 
     if isinstance(data, list):
@@ -33,7 +51,7 @@ def plot_data(data, xaxis='Epoch', value="AverageEpRet", condition="Condition1",
     sns.set_theme(style="darkgrid", font_scale=font_scale)
     sns.lineplot(data=data, x=xaxis, y=value, hue=condition, errorbar='sd', **kwargs)
     legend = plt.legend(loc='best')
-    if legend is not None:
+    if legend is not None and _is_interactive_backend():
         legend.set_draggable(True)
 
     xscale = np.max(np.asarray(data[xaxis])) > 5e3
@@ -86,25 +104,24 @@ def get_datasets(logdir, condition=None):
     return datasets
 
 
-def get_all_datasets(all_logdirs, legend=None, select=None, exclude=None):
-    """
-    For every entry in all_logdirs,
-        1) check if the entry is a real directory and if it is, 
-           pull data from it; 
+def _collect_logdirs_and_datasets(all_logdirs, legend=None, select=None, exclude=None):
+    if not all_logdirs:
+        raise ValueError("No log directories specified.")
 
-        2) if not, check to see if the entry is a prefix for a 
-           real directory, and pull data from that.
-    """
     logdirs = []
     for logdir in all_logdirs:
         if osp.isdir(logdir) and logdir[-1] == os.sep:
             logdirs += [logdir]
         else:
             basedir = osp.dirname(logdir) or '.'
+            if not osp.isdir(basedir):
+                continue
             fulldir = lambda x: osp.join(basedir, x)
             prefix = logdir.split(os.sep)[-1]
             listdir = os.listdir(basedir)
-            logdirs += sorted([fulldir(x) for x in listdir if prefix in x])
+            logdirs += sorted([fulldir(x) for x in listdir if prefix in x and osp.isdir(fulldir(x))])
+
+    logdirs = list(dict.fromkeys(logdirs))
 
     """
     Enforce selection rules, which check logdirs for certain substrings.
@@ -134,20 +151,62 @@ def get_all_datasets(all_logdirs, legend=None, select=None, exclude=None):
     else:
         for log in logdirs:
             data += get_datasets(log)
+    return data, logdirs
+
+
+def get_all_datasets(all_logdirs, legend=None, select=None, exclude=None):
+    """
+    For every entry in all_logdirs,
+        1) check if the entry is a real directory and if it is, 
+           pull data from it; 
+
+        2) if not, check to see if the entry is a prefix for a 
+           real directory, and pull data from that.
+    """
+    data, _ = _collect_logdirs_and_datasets(all_logdirs, legend, select, exclude)
     return data
 
 
+def _resolve_savefig_path(savefig, value, num_values):
+    ext_set = {'.png', '.pdf', '.svg', '.jpg', '.jpeg'}
+    root, ext = osp.splitext(savefig)
+    if num_values == 1 and ext.lower() in ext_set:
+        parent = osp.dirname(savefig)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+        return savefig
+    if not ext or ext.lower() not in ext_set:
+        os.makedirs(savefig, exist_ok=True)
+        return osp.join(savefig, f'plot_{value}.png')
+    parent = osp.dirname(savefig)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    return f'{root}_{value}{ext}'
+
+
 def make_plots(all_logdirs, legend=None, xaxis=None, values=None, count=False,
-               font_scale=1.5, smooth=1, select=None, exclude=None, estimator='mean'):
-    data = get_all_datasets(all_logdirs, legend, select, exclude)
+               font_scale=1.5, smooth=1, select=None, exclude=None, estimator='mean',
+               savefig=None):
+    data, logdirs = _collect_logdirs_and_datasets(all_logdirs, legend, select, exclude)
+    if not data:
+        raise ValueError(f"No experiment progress.txt files found matching: {all_logdirs}")
     values = values if isinstance(values, list) else [values]
     condition = 'Condition2' if count else 'Condition1'
     estimator = getattr(np, estimator)      # choose what to show on main curve: mean? max? min?
+    figs = []
     for value in values:
-        plt.figure()
+        fig = plt.figure()
         plot_data(data, xaxis=xaxis, value=value, condition=condition,
                   smooth=smooth, font_scale=font_scale, estimator=estimator)
-    plt.show()
+        figs.append((fig, value))
+
+    if savefig is not None:
+        for fig, value in figs:
+            out_path = _resolve_savefig_path(savefig, value, len(figs))
+            fig.savefig(out_path, bbox_inches='tight')
+            print('Saved plot to %s' % out_path)
+    elif _is_interactive_backend():
+        plt.show()
 
 
 def main():
@@ -162,6 +221,10 @@ def main():
     parser.add_argument('--select', nargs='*')
     parser.add_argument('--exclude', nargs='*')
     parser.add_argument('--est', default='mean')
+    parser.add_argument(
+        '--savefig', '-o', type=str, default=None,
+        help='Save figure(s) to file or directory instead of opening an interactive window.',
+    )
     args = parser.parse_args()
     """
 
@@ -211,11 +274,28 @@ def main():
         exclude (strings): Optional exclusion rule: plotter will only show 
             curves from logdirs that do not contain these substrings.
 
-    """
+        savefig (string): Optional output file path or directory to save figures
+            to instead of opening an interactive GUI window.
 
-    make_plots(args.logdir, args.legend, args.xaxis, args.value, args.count,
-               smooth=args.smooth, select=args.select, exclude=args.exclude,
-               estimator=args.est)
+    """
+    savefig = args.savefig
+    if savefig is None and not _is_interactive_backend():
+        if len(args.logdir) == 1 and osp.isdir(args.logdir[0]):
+            savefig = args.logdir[0].rstrip(os.sep) or '.'
+        else:
+            savefig = '.'
+        print(
+            f'No interactive display detected; saving plot(s) to {savefig} '
+            '(pass --savefig/-o <path> to choose a custom location).'
+        )
+
+    try:
+        make_plots(args.logdir, args.legend, args.xaxis, args.value, args.count,
+                   smooth=args.smooth, select=args.select, exclude=args.exclude,
+                   estimator=args.est, savefig=savefig)
+    except ValueError as exc:
+        print(f'Error: {exc}', file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

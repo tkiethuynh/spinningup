@@ -68,3 +68,7 @@ Spinning Up ships with a simple plotting utility for interpreting results. Run i
 .. option:: --exclude=[EXC ...]
 
     *strings*. Optional exclusion rule: plotter will only show curves from logdirs that do not contain these substrings.
+
+.. option:: -o PATH, --savefig=PATH
+
+    *string*. Save plotted figure(s) to a file or directory instead of opening an interactive window. When running on a headless terminal or SSH session without a graphical display, the plotter automatically saves PNG figures (e.g. ``plot_Performance.png``) inside the log directory unless ``--savefig`` specifies another path.

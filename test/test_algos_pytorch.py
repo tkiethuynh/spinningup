@@ -186,3 +186,23 @@ def test_pytorch_terminated_vs_truncated_bootstrapping(tmp_path, monkeypatch):
     )
     assert len(recorded_last_vals) == 2
     assert all(v != 0.0 for v in recorded_last_vals)
+
+
+def test_pytorch_sac_1d_pi_and_off_policy_discrete_guard(tmp_path):
+    import torch
+    from spinup.algos.pytorch.sac.core import MLPActorCritic as PytSACAC
+
+    env = gym.make("Pendulum-v1")
+    ac = PytSACAC(env.observation_space, env.action_space, hidden_sizes=(16, 16))
+    obs_1d = torch.zeros(env.observation_space.shape[0], dtype=torch.float32)
+    a, logp = ac.pi(obs_1d, deterministic=False, with_logprob=True)
+    assert a.shape == env.action_space.shape
+    assert logp.shape == ()
+    env.close()
+
+    for idx, algo in enumerate((sac_pytorch, td3_pytorch, ddpg_pytorch)):
+        with pytest.raises(ValueError, match=r"continuous.*Box"):
+            algo(
+                env_fn=partial(gym.make, "CartPole-v1"),
+                logger_kwargs=dict(output_dir=str(tmp_path / f"disc_{idx}"), exp_name="disc"),
+            )

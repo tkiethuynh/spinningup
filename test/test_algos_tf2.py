@@ -132,3 +132,12 @@ def test_tf2_terminated_vs_truncated_bootstrapping(tmp_path, monkeypatch):
     )
     assert len(recorded_last_vals) == 2
     assert all(v != 0.0 for v in recorded_last_vals)
+
+
+def test_tf2_off_policy_discrete_guard(tmp_path):
+    for idx, algo in enumerate((sac_tf2, td3_tf2, ddpg_tf2)):
+        with pytest.raises(ValueError, match=r"continuous.*Box"):
+            algo(
+                env_fn=partial(gym.make, "CartPole-v1"),
+                logger_kwargs=dict(output_dir=str(tmp_path / f"tf2_disc_{idx}"), exp_name="disc"),
+            )

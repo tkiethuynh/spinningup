@@ -68,6 +68,10 @@ python spinup/examples/pytorch/pg_math/2_rtg_pg.py
 # Watch the trained agent or plot progress
 python -m spinup.run test_policy data/hello_ppo/hello_ppo_s0
 python -m spinup.run plot data/hello_ppo
+
+# Over headless SSH without a display, save GIF videos or plot PNGs directly
+python -m spinup.run test_policy data/hello_ppo/hello_ppo_s0 --save_video videos/hello_ppo
+python -m spinup.run plot data/hello_ppo --savefig data/hello_ppo/performance.png
 ```
 
 ### CPU vs. GPU (`--device`)

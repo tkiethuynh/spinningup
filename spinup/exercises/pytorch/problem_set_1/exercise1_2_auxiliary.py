@@ -50,5 +50,9 @@ class ExerciseActorCritic(nn.Module):
             v = self.v(obs)
         return a.detach().cpu().numpy(), v.detach().cpu().numpy(), logp_a.detach().cpu().numpy()
 
-    def act(self, obs):
-        return self.step(obs)[0]
+    def act(self, obs, deterministic=False):
+        if not deterministic:
+            return self.step(obs)[0]
+        with torch.no_grad():
+            pi, _ = self.pi(obs)
+            return pi.mu.detach().cpu().numpy()

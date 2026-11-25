@@ -32,6 +32,8 @@ def mpi_fork(n, bind_to_core=False):
             OMP_NUM_THREADS="1",
             IN_MPI="1"
         )
+        env.setdefault("OMPI_MCA_rmaps_base_oversubscribe", "1")
+        env.setdefault("PRTE_MCA_rmaps_default_mapping_policy", ":oversubscribe")
         args = ["mpirun", "-np", str(n)]
         if bind_to_core:
             args += ["-bind-to", "core"]

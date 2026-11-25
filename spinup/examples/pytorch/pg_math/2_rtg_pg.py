@@ -1,3 +1,5 @@
+import os
+import sys
 import torch
 import torch.nn as nn
 from torch.distributions.categorical import Categorical
@@ -31,6 +33,16 @@ def train(env_name='CartPole-v1', hidden_sizes=[32], lr=1e-2,
     assert isinstance(env.action_space, Discrete), \
         "This example only works for envs with discrete action spaces."
 
+    render_env = None
+    if render:
+        if sys.platform.startswith('linux') and not (
+            os.environ.get('DISPLAY') or os.environ.get('WAYLAND_DISPLAY')
+        ):
+            print('Warning: No display detected ($DISPLAY / $WAYLAND_DISPLAY unset); disabling --render.')
+            render = False
+        else:
+            render_env = gym.make(env_name, render_mode='human')
+
     obs_dim = env.observation_space.shape[0]
     n_acts = env.action_space.n
 
@@ -63,27 +75,22 @@ def train(env_name='CartPole-v1', hidden_sizes=[32], lr=1e-2,
         batch_rets = []         # for measuring episode returns
         batch_lens = []         # for measuring episode lengths
 
-        # reset episode-specific variables
-        obs, _ = env.reset()    # first obs comes from starting distribution
+        # reset episode-specific variables (render first episode of each epoch)
+        finished_rendering_this_epoch = False
+        active_env = render_env if render_env is not None else env
+        obs, _ = active_env.reset()    # first obs comes from starting distribution
         done = False            # signal from environment that episode is over
         ep_rews = []            # list for rewards accrued throughout ep
 
-        # render first episode of each epoch
-        finished_rendering_this_epoch = False
-
         # collect experience by acting in the environment with current policy
         while True:
-
-            # rendering
-            if (not finished_rendering_this_epoch) and render:
-                env.render()
 
             # save obs
             batch_obs.append(obs.copy())
 
             # act in the environment
             act = get_action(torch.as_tensor(obs, dtype=torch.float32))
-            obs, rew, terminated, truncated, _ = env.step(act)
+            obs, rew, terminated, truncated, _ = active_env.step(act)
             done = terminated or truncated
 
             # save action, reward
@@ -99,11 +106,12 @@ def train(env_name='CartPole-v1', hidden_sizes=[32], lr=1e-2,
                 # the weight for each logprob(a_t|s_t) is reward-to-go from t
                 batch_weights += list(reward_to_go(ep_rews))
 
-                # reset episode-specific variables
-                (obs, _), done, ep_rews = env.reset(), False, []
-
                 # won't render again this epoch
                 finished_rendering_this_epoch = True
+                active_env = env
+
+                # reset episode-specific variables
+                (obs, _), done, ep_rews = active_env.reset(), False, []
 
                 # end experience loop if we have enough of it
                 if len(batch_obs) > batch_size:
@@ -120,10 +128,15 @@ def train(env_name='CartPole-v1', hidden_sizes=[32], lr=1e-2,
         return batch_loss, batch_rets, batch_lens
 
     # training loop
-    for i in range(epochs):
-        batch_loss, batch_rets, batch_lens = train_one_epoch()
-        print('epoch: %3d \t loss: %.3f \t return: %.3f \t ep_len: %.3f'%
-                (i, batch_loss.item(), np.mean(batch_rets), np.mean(batch_lens)))
+    try:
+        for i in range(epochs):
+            batch_loss, batch_rets, batch_lens = train_one_epoch()
+            print('epoch: %3d \t loss: %.3f \t return: %.3f \t ep_len: %.3f'%
+                    (i, batch_loss.item(), np.mean(batch_rets), np.mean(batch_lens)))
+    finally:
+        env.close()
+        if render_env is not None:
+            render_env.close()
 
 if __name__ == '__main__':
     import argparse
