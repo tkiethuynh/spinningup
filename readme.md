@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10–3.13](https://img.shields.io/badge/python-3.10%E2%80%933.13-blue.svg)](https://www.python.org/downloads/)
 [![CI](https://github.com/tkiethuynh/spinningup/actions/workflows/ci.yml/badge.svg)](https://github.com/tkiethuynh/spinningup/actions/workflows/ci.yml)
-[![Docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue.svg)](https://github.com/tkiethuynh/spinningup/deployments/github-pages)
+[![Docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue.svg)](https://tkiethuynh.github.io/spinningup/)
 
 Welcome to the **modernized** edition of OpenAI's [Spinning Up in Deep RL](https://spinningup.openai.com)! This repository brings the curriculum to modern **Python 3.10–3.13**, **Gymnasium (`>=1.0.0`)** (including open-source MuJoCo `v5`), **PyTorch 2.x**, and **TensorFlow 2 / Keras 3** while keeping what made the original special: short, standalone, heavily annotated implementations where every equation maps cleanly to readable Python.
 
