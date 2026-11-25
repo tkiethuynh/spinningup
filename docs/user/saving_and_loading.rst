@@ -87,8 +87,9 @@ The ``tf2_save`` directory contains:
 +----------------------------------------------------------------------------------+
 | **TF2_Save Directory Structure**                                                 |
 +------------------+---------------------------------------------------------------+
-|``model/``        | | A directory containing outputs from the Keras model save.   |
-|                  | | See documentation for `Tensorflow SavedModel`_.             |
+|``model.keras``   | | A Keras 3 archive containing the saved ``MLPActorCritic``   |
+|                  | | model. Restorable via ``restore_tf2_model`` or              |
+|                  | | ``tf.keras.models.load_model(..., compile=False)``.         |
 +------------------+---------------------------------------------------------------+
 
 
@@ -207,6 +208,6 @@ Episode 1    EpRet -346.164      EpLen 99
 Using Trained Value Functions
 -----------------------------
 
-The ``test_policy.py`` tool doesn't help you look at trained value functions, and if you want to use those, you will have to do some digging by hand. For the PyTorch case, load the saved model file with ``torch.load`` and check the documentation for each algorithm to see what modules the ActorCritic object has. For the Tensorflow case, load the saved computation graph with the `restore_tf_graph`_ function, and check the documentation for each algorithm to see what functions were saved.
+The ``test_policy.py`` tool doesn't help you look at trained value functions, and if you want to use those, you will have to do some digging by hand. For the PyTorch case, load the saved model file with ``torch.load(..., weights_only=False)`` and check the documentation for each algorithm to see what modules the ActorCritic object has. For the Tensorflow 2 case, load the saved Keras model with `restore_tf2_model`_, and check the documentation for each algorithm to see what submodules (``pi``, ``v``, ``q``, ``q1``, ``q2``) were saved.
 
-.. _`restore_tf_graph`: ../utils/logger.html#spinup.utils.logx.restore_tf_graph
+.. _`restore_tf2_model`: ../utils/logger.html#spinup.utils.logx.restore_tf2_model

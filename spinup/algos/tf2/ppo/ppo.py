@@ -1,13 +1,16 @@
+import time
+from typing import Callable, Dict, Any
+
+import gymnasium as gym
 import numpy as np
 import tensorflow as tf
-import gymnasium as gym
-import time
-from typing import Callable, Optional, Dict, Any
+
 import spinup.algos.tf2.ppo.core as core
+from spinup.utils.device_utils import get_tf_device
 from spinup.utils.logx import EpochLogger
 from spinup.utils.mpi_tf import MpiAdamOptimizer, sync_params
 from spinup.utils.mpi_tools import mpi_fork, mpi_avg, proc_id, mpi_statistics_scalar, num_procs
-from spinup.utils.device_utils import get_tf_device
+
 
 class PPOBuffer:
     def __init__(self, obs_dim, act_dim, size, gamma=0.99, lam=0.95):
@@ -34,72 +37,67 @@ class PPOBuffer:
         path_slice = slice(self.path_start_idx, self.ptr)
         rews = np.append(self.rew_buf[path_slice], last_val)
         vals = np.append(self.val_buf[path_slice], last_val)
-        
-        deltas = rews[:-1] + self.gamma * vals[1:] - vals[:-1]
-        
-        import scipy.signal
-        def discount_cumsum(x, discount):
-            return scipy.signal.lfilter([1], [1, float(-discount)], x[::-1], axis=0)[::-1]
 
-        self.adv_buf[path_slice] = discount_cumsum(deltas, self.gamma * self.lam)
-        self.ret_buf[path_slice] = discount_cumsum(rews, self.gamma)[:-1]
-        
+        deltas = rews[:-1] + self.gamma * vals[1:] - vals[:-1]
+        self.adv_buf[path_slice] = core.discount_cumsum(deltas, self.gamma * self.lam)
+        self.ret_buf[path_slice] = core.discount_cumsum(rews, self.gamma)[:-1]
+
         self.path_start_idx = self.ptr
 
     def get(self):
         assert self.ptr == self.max_size
         self.ptr, self.path_start_idx = 0, 0
         adv_mean, adv_std = mpi_statistics_scalar(self.adv_buf)
-        self.adv_buf = (self.adv_buf - adv_mean) / adv_std
-        return [self.obs_buf, self.act_buf, self.adv_buf, 
+        self.adv_buf = (self.adv_buf - adv_mean) / (adv_std + 1e-8)
+        return [self.obs_buf, self.act_buf, self.adv_buf,
                 self.ret_buf, self.logp_buf]
 
-def ppo(env_fn: Callable[[], gym.Env], 
-        actor_critic: type[tf.keras.Model] = core.MLPActorCritic, 
-        ac_kwargs: Dict[str, Any] = dict(), 
-        seed: int = 0, 
-        steps_per_epoch: int = 4000, 
-        epochs: int = 50, 
-        gamma: float = 0.99, 
-        clip_ratio: float = 0.2, 
+
+def ppo(env_fn: Callable[[], gym.Env],
+        actor_critic: type[tf.keras.Model] = core.MLPActorCritic,
+        ac_kwargs: Dict[str, Any] = dict(),
+        seed: int = 0,
+        steps_per_epoch: int = 4000,
+        epochs: int = 50,
+        gamma: float = 0.99,
+        clip_ratio: float = 0.2,
         pi_lr: float = 3e-4,
-        vf_lr: float = 1e-3, 
-        train_pi_iters: int = 80, 
-        train_v_iters: int = 80, 
-        lam: float = 0.97, 
+        vf_lr: float = 1e-3,
+        train_pi_iters: int = 80,
+        train_v_iters: int = 80,
+        lam: float = 0.97,
         max_ep_len: int = 1000,
-        target_kl: float = 0.01, 
-        logger_kwargs: Dict[str, Any] = dict(), 
+        target_kl: float = 0.01,
+        logger_kwargs: Dict[str, Any] = dict(),
         save_freq: int = 10):
 
     logger = EpochLogger(**logger_kwargs)
     logger.save_config(locals())
 
-    tf.random.set_seed(seed)
+    seed += 10000 * proc_id()
+    tf.keras.utils.set_random_seed(seed)
     np.random.seed(seed)
 
     env = env_fn()
     obs_dim = env.observation_space.shape
     act_dim = env.action_space.shape
-    
-    # Device selection
+
     device = get_tf_device()
     logger.log(f'Using device: {device}')
 
     with tf.device(device):
         ac = actor_critic(env.observation_space, env.action_space, **ac_kwargs)
-
-        # Build model
-        dummy_obs = np.zeros((1, obs_dim[0]), dtype=np.float32)
+        dummy_obs = np.zeros((1, *obs_dim), dtype=np.float32)
         ac(dummy_obs)
 
     sync_params(ac.variables)
-
-    # Setup model saving
     logger.setup_tf2_saver(ac)
 
-    pi_optimizer = MpiAdamOptimizer(learning_rate=pi_lr)
-    vf_optimizer = MpiAdamOptimizer(learning_rate=vf_lr)
+    with tf.device(device):
+        pi_optimizer = MpiAdamOptimizer(learning_rate=pi_lr)
+        vf_optimizer = MpiAdamOptimizer(learning_rate=vf_lr)
+        pi_optimizer.build(ac.pi.trainable_variables)
+        vf_optimizer.build(ac.v.trainable_variables)
 
     local_steps_per_epoch = int(steps_per_epoch / num_procs())
     buf = PPOBuffer(obs_dim, act_dim, local_steps_per_epoch, gamma, lam)
@@ -114,9 +112,9 @@ def ppo(env_fn: Callable[[], gym.Env],
             mu_std = ac.pi(obs)
             logp = ac.pi.log_prob_from_distribution(mu_std, act)
             ent = ac.pi.entropy(mu_std)
-        
+
         ratio = tf.exp(logp - logp_old)
-        clip_adv = tf.clip_by_value(ratio, 1-clip_ratio, 1+clip_ratio) * adv
+        clip_adv = tf.clip_by_value(ratio, 1 - clip_ratio, 1 + clip_ratio) * adv
         loss_pi = -tf.reduce_mean(tf.minimum(ratio * adv, clip_adv))
 
         approx_kl = tf.reduce_mean(logp_old - logp)
@@ -124,16 +122,19 @@ def ppo(env_fn: Callable[[], gym.Env],
 
     @tf.function
     def compute_loss_v(obs, ret):
-        return tf.reduce_mean((ret - ac.v(obs))**2)
+        return tf.reduce_mean((ret - ac.v(obs)) ** 2)
 
     def update():
         obs, act, adv, ret, logp_old = [tf.convert_to_tensor(x) for x in buf.get()]
 
         with tf.device(device):
+            pi_l_old, _, _ = compute_loss_pi(obs, act, adv, logp_old)
+            v_l_old = compute_loss_v(obs, ret)
+
             for i in range(train_pi_iters):
                 with tf.GradientTape() as tape:
                     loss_pi, kl, ent = compute_loss_pi(obs, act, adv, logp_old)
-                
+
                 kl = mpi_avg(kl.numpy())
                 if kl > 1.5 * target_kl:
                     break
@@ -151,21 +152,25 @@ def ppo(env_fn: Callable[[], gym.Env],
 
             loss_pi_new, kl_new, ent_new = compute_loss_pi(obs, act, adv, logp_old)
             loss_v_new = compute_loss_v(obs, ret)
-            logger.store(LossPi=loss_pi, LossV=loss_v, 
-                         KL=kl_new, Entropy=ent_new, 
-                         DeltaLossPi=(loss_pi_new - loss_pi),
-                         DeltaLossV=(loss_v_new - loss_v))
+            logger.store(
+                LossPi=float(pi_l_old),
+                LossV=float(v_l_old),
+                KL=float(kl_new),
+                Entropy=float(ent_new),
+                DeltaLossPi=float(loss_pi_new - pi_l_old),
+                DeltaLossV=float(loss_v_new - v_l_old),
+            )
 
     start_time = time.time()
-    o, _ = env.reset()
+    o, _ = env.reset(seed=seed)
+    env.action_space.seed(seed)
     ep_ret, ep_len = 0, 0
 
     for epoch in range(epochs):
         for t in range(local_steps_per_epoch):
-            a, v, logp = ac.step(o.reshape(1,-1).astype('float32'))
+            a, v, logp = ac.step(o.reshape(1, -1).astype('float32'))
 
             next_o, r, terminated, truncated, _ = env.step(a[0])
-            d = terminated or truncated
             ep_ret += r
             ep_len += 1
 
@@ -174,19 +179,23 @@ def ppo(env_fn: Callable[[], gym.Env],
 
             o = next_o
 
-            timeout = ep_len == max_ep_len
-            terminal = d or timeout
-            epoch_ended = t==local_steps_per_epoch-1
+            timeout = (ep_len == max_ep_len) or truncated
+            terminal = terminated or timeout
+            epoch_ended = t == local_steps_per_epoch - 1
 
             if terminal or epoch_ended:
-                last_val = 0 if d else ac.v(o.reshape(1,-1).astype('float32')).numpy()[0]
+                last_val = (
+                    0.0
+                    if terminated
+                    else float(ac.v(o.reshape(1, -1).astype('float32')).numpy()[0])
+                )
                 buf.finish_path(last_val)
                 if terminal:
                     logger.store(EpRet=ep_ret, EpLen=ep_len)
                 o, _ = env.reset()
                 ep_ret, ep_len = 0, 0
 
-        if (epoch % save_freq == 0) or (epoch == epochs-1):
+        if (epoch % save_freq == 0) or (epoch == epochs - 1):
             logger.save_state({'env': env}, None)
 
         update()
@@ -195,7 +204,7 @@ def ppo(env_fn: Callable[[], gym.Env],
         logger.log_tabular('EpRet', with_min_and_max=True)
         logger.log_tabular('EpLen', average_only=True)
         logger.log_tabular('VVals', with_min_and_max=True)
-        logger.log_tabular('TotalEnvInteracts', (epoch+1)*steps_per_epoch)
+        logger.log_tabular('TotalEnvInteracts', (epoch + 1) * steps_per_epoch)
         logger.log_tabular('LossPi', average_only=True)
         logger.log_tabular('LossV', average_only=True)
         logger.log_tabular('DeltaLossPi', average_only=True)
@@ -203,8 +212,9 @@ def ppo(env_fn: Callable[[], gym.Env],
         logger.log_tabular('Entropy', average_only=True)
         logger.log_tabular('KL', average_only=True)
         logger.log_tabular('StopIter', average_only=True)
-        logger.log_tabular('Time', time.time()-start_time)
+        logger.log_tabular('Time', time.time() - start_time)
         logger.dump_tabular()
+
 
 if __name__ == '__main__':
     import argparse
@@ -225,7 +235,7 @@ if __name__ == '__main__':
     from spinup.utils.run_utils import setup_logger_kwargs
     logger_kwargs = setup_logger_kwargs(args.exp_name, args.seed)
 
-    ppo(lambda : gym.make(args.env), actor_critic=core.MLPActorCritic,
-        ac_kwargs=dict(hidden_sizes=[args.hid]*args.l), gamma=args.gamma, 
+    ppo(lambda: gym.make(args.env), actor_critic=core.MLPActorCritic,
+        ac_kwargs=dict(hidden_sizes=[args.hid] * args.l), gamma=args.gamma,
         seed=args.seed, steps_per_epoch=args.steps, epochs=args.epochs,
         logger_kwargs=logger_kwargs)

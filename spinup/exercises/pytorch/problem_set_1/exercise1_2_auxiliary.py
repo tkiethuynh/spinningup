@@ -48,7 +48,7 @@ class ExerciseActorCritic(nn.Module):
             a = pi.sample()
             logp_a = pi.log_prob(a)
             v = self.v(obs)
-        return a.numpy(), v.numpy(), logp_a.numpy()
+        return a.detach().cpu().numpy(), v.detach().cpu().numpy(), logp_a.detach().cpu().numpy()
 
     def act(self, obs):
         return self.step(obs)[0]

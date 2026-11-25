@@ -40,68 +40,49 @@ Next, let's look at a full training procedure with the logger embedded, to highl
 
 .. code-block:: python
    :linenos:
-   :emphasize-lines: 18, 19, 42, 43, 54, 58, 61, 62, 63, 64, 65, 66
 
     import numpy as np
     import tensorflow as tf
     import time
     from spinup.utils.logx import EpochLogger
 
-
-    def mlp(x, hidden_sizes=(32,), activation=tf.tanh, output_activation=None):
-        for h in hidden_sizes[:-1]:
-            x = tf.layers.dense(x, units=h, activation=activation)
-        return tf.layers.dense(x, units=hidden_sizes[-1], activation=output_activation)
-
-
-    # Simple script for training an MLP on MNIST.
-    def train_mnist(steps_per_epoch=100, epochs=5, 
-                    lr=1e-3, layers=2, hidden_size=64, 
+    # Simple script for training an MLP on MNIST with TF2.
+    def train_mnist(steps_per_epoch=100, epochs=5,
+                    lr=1e-3, layers=2, hidden_size=64,
                     logger_kwargs=dict(), save_freq=1):
 
         logger = EpochLogger(**logger_kwargs)
         logger.save_config(locals())
 
-        # Load and preprocess MNIST data
         (x_train, y_train), _ = tf.keras.datasets.mnist.load_data()
-        x_train = x_train.reshape(-1, 28*28) / 255.0
+        x_train = x_train.reshape(-1, 28*28).astype('float32') / 255.0
 
-        # Define inputs & main outputs from computation graph
-        x_ph = tf.placeholder(tf.float32, shape=(None, 28*28))
-        y_ph = tf.placeholder(tf.int32, shape=(None,))
-        logits = mlp(x_ph, hidden_sizes=[hidden_size]*layers + [10], activation=tf.nn.relu)
-        predict = tf.argmax(logits, axis=1, output_type=tf.int32)
+        model = tf.keras.Sequential(
+            [tf.keras.layers.Input(shape=(28*28,))]
+            + [tf.keras.layers.Dense(hidden_size, activation='relu') for _ in range(layers)]
+            + [tf.keras.layers.Dense(10)]
+        )
+        optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
+        loss_fn = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
 
-        # Define loss function, accuracy, and training op
-        y = tf.one_hot(y_ph, 10)
-        loss = tf.losses.softmax_cross_entropy(y, logits)
-        acc = tf.reduce_mean(tf.cast(tf.equal(y_ph, predict), tf.float32))
-        train_op = tf.train.AdamOptimizer().minimize(loss)
-
-        # Prepare session
-        sess = tf.Session()
-        sess.run(tf.global_variables_initializer())
-
-        # Setup model saving
-        logger.setup_tf_saver(sess, inputs={'x': x_ph}, 
-                                    outputs={'logits': logits, 'predict': predict})
-
+        logger.setup_tf2_saver(model)
         start_time = time.time()
 
-        # Run main training loop
         for epoch in range(epochs):
             for t in range(steps_per_epoch):
                 idxs = np.random.randint(0, len(x_train), 32)
-                feed_dict = {x_ph: x_train[idxs],
-                             y_ph: y_train[idxs]}
-                outs = sess.run([loss, acc, train_op], feed_dict=feed_dict)
-                logger.store(Loss=outs[0], Acc=outs[1])
+                xb, yb = x_train[idxs], y_train[idxs]
+                with tf.GradientTape() as tape:
+                    logits = model(xb, training=True)
+                    loss = loss_fn(yb, logits)
+                grads = tape.gradient(loss, model.trainable_variables)
+                optimizer.apply_gradients(zip(grads, model.trainable_variables))
+                acc = tf.reduce_mean(tf.cast(tf.equal(yb, tf.argmax(logits, axis=1)), tf.float32))
+                logger.store(Loss=float(loss), Acc=float(acc))
 
-            # Save model
             if (epoch % save_freq == 0) or (epoch == epochs-1):
                 logger.save_state(state_dict=dict(), itr=None)
 
-            # Log info about epoch
             logger.log_tabular('Epoch', epoch)
             logger.log_tabular('Acc', with_min_and_max=True)
             logger.log_tabular('Loss', average_only=True)
@@ -114,14 +95,14 @@ Next, let's look at a full training procedure with the logger embedded, to highl
 
 In this example, observe that
 
-* On line 19, `logger.save_config`_ is used to save the hyperparameter configuration to a JSON file.
-* On lines 42 and 43, `logger.setup_tf_saver`_ is used to prepare the logger to save the key elements of the computation graph.
-* On line 54, diagnostics are saved to the logger's internal state via `logger.store`_.
-* On line 58, the computation graph is saved once per epoch via `logger.save_state`_.
-* On lines 61-66, `logger.log_tabular`_ and `logger.dump_tabular`_ are used to write the epoch diagnostics to file. Note that the keys passed into `logger.log_tabular`_ are the same as the keys passed into `logger.store`_.
+* `logger.save_config`_ is used to save the hyperparameter configuration to a JSON file.
+* `logger.setup_tf2_saver`_ is used to prepare the logger to save the Keras model.
+* Diagnostics are saved to the logger's internal state via `logger.store`_.
+* The model is saved once per epoch via `logger.save_state`_.
+* `logger.log_tabular`_ and `logger.dump_tabular`_ are used to write the epoch diagnostics to file. Note that the keys passed into `logger.log_tabular`_ are the same as the keys passed into `logger.store`_.
 
 .. _`logger.save_config`: ../utils/logger.html#spinup.utils.logx.Logger.save_config
-.. _`logger.setup_tf_saver`: ../utils/logger.html#spinup.utils.logx.Logger.setup_tf_saver
+.. _`logger.setup_tf2_saver`: ../utils/logger.html#spinup.utils.logx.Logger.setup_tf2_saver
 .. _`logger.store`: ../utils/logger.html#spinup.utils.logx.EpochLogger.store
 .. _`logger.save_state`: ../utils/logger.html#spinup.utils.logx.Logger.save_state
 .. _`logger.log_tabular`: ../utils/logger.html#spinup.utils.logx.EpochLogger.log_tabular
@@ -131,7 +112,7 @@ In this example, observe that
 Logging and PyTorch
 -------------------
 
-The preceding example was given in Tensorflow. For PyTorch, everything is the same except for L42-43: instead of ``logger.setup_tf_saver``, you would use ``logger.setup_pytorch_saver``, and you would pass it `a PyTorch module`_ (the network you are training) as an argument.
+The preceding example was given in Tensorflow 2. For PyTorch, instead of ``logger.setup_tf2_saver``, you would use ``logger.setup_pytorch_saver``, and pass it `a PyTorch module`_ (the network you are training) as an argument.
 
 The behavior of ``logger.save_state`` is the same as in the Tensorflow case: each time it is called, it'll save the latest version of the PyTorch module.
 
@@ -166,7 +147,7 @@ To load an actor-critic model saved by a PyTorch Spinning Up implementation, run
 
 .. code-block:: python
 
-    ac = torch.load('path/to/model.pt')
+    ac = torch.load('path/to/model.pt', weights_only=False)
 
 When you use this method to load an actor-critic model, you can minimally expect it to have an ``act`` method that allows you to sample actions from the policy, given observations:
 
@@ -175,19 +156,9 @@ When you use this method to load an actor-critic model, you can minimally expect
     actions = ac.act(torch.as_tensor(obs, dtype=torch.float32))
 
 
-Loading Saved Graphs (Tensorflow Only)
-======================================
+Loading Saved Models (Tensorflow 2 Only)
+========================================
 
-.. autofunction:: spinup.utils.logx.restore_tf_graph
+.. autofunction:: spinup.utils.logx.restore_tf2_model
 
-When you use this method to restore a graph saved by a Tensorflow Spinning Up implementation, you can minimally expect it to include the following:
-
-======  ===============================================
-Key     Value
-======  ===============================================
-``x``   Tensorflow placeholder for state input.
-``pi``  | Samples an action from the agent, conditioned
-        | on states in ``x``.
-======  ===============================================
-
-The relevant value functions for an algorithm are also typically stored. For details of what else gets saved by a given algorithm, see its documentation page.
+When you use this method to restore a model saved by a Tensorflow 2 Spinning Up implementation, it returns an ``MLPActorCritic`` Keras model with an ``act`` method and policy/value submodules (e.g., ``pi``, ``v``, ``q``, ``q1``, ``q2``). See each algorithm's documentation page for details.

@@ -14,17 +14,13 @@ Problem Set 1: Basics of Implementation
     **Path to Exercise:** 
 
     * PyTorch version: ``spinup/exercises/pytorch/problem_set_1/exercise1_1.py``
-    
-    * Tensorflow version: ``spinup/exercises/tf1/problem_set_1/exercise1_1.py``
 
     **Path to Solution:** 
 
     * PyTorch version: ``spinup/exercises/pytorch/problem_set_1_solutions/exercise1_1_soln.py``
 
-    * Tensorflow version: ``spinup/exercises/tf1/problem_set_1_solutions/exercise1_1_soln.py``
 
-
-    **Instructions.** Write a function that takes in the means and log stds of a batch of diagonal Gaussian distributions, along with (previously-generated) samples from those distributions, and returns the log likelihoods of those samples. (In the Tensorflow version, you will write a function that creates computation graph operations to do this; in the PyTorch version, you will directly operate on given Tensors.)
+    **Instructions.** Write a function that takes in the means and log stds of a batch of diagonal Gaussian distributions, along with (previously-generated) samples from those distributions, and returns the log likelihoods of those samples, operating directly on given PyTorch Tensors.
 
     You may find it useful to review the formula given in `this section of the RL introduction`_.
 
@@ -40,20 +36,16 @@ Problem Set 1: Basics of Implementation
     **Path to Exercise:** 
 
     * PyTorch version: ``spinup/exercises/pytorch/problem_set_1/exercise1_2.py``
-    
-    * Tensorflow version: ``spinup/exercises/tf1/problem_set_1/exercise1_2.py``
 
     **Path to Solution:** 
 
     * PyTorch version: ``spinup/exercises/pytorch/problem_set_1_solutions/exercise1_2_soln.py``
 
-    * Tensorflow version: ``spinup/exercises/tf1/problem_set_1_solutions/exercise1_2_soln.py``
-
     **Instructions.** Implement an MLP diagonal Gaussian policy for PPO. 
 
     Implement your solution in ``exercise1_2.py``, and run that file to automatically check your work. 
 
-    **Evaluation Criteria.** Your solution will be evaluated by running for 20 epochs in the InvertedPendulum-v2 Gym environment, and this should take in the ballpark of 3-5 minutes (depending on your machine, and other processes you are running in the background). The bar for success is reaching an average score of over 500 in the last 5 epochs, or getting to a score of 1000 (the maximum possible score) in the last 5 epochs.
+    **Evaluation Criteria.** Your solution will be evaluated by running for 20 epochs in the InvertedPendulum-v5 Gymnasium environment, and this should take in the ballpark of 3-5 minutes (depending on your machine, and other processes you are running in the background). The bar for success is reaching an average score of over 500 in the last 5 epochs, or getting to a score of 1000 (the maximum possible score) in the last 5 epochs.
 
 
 .. admonition:: Exercise 1.3: Computation Graph for TD3
@@ -61,14 +53,10 @@ Problem Set 1: Basics of Implementation
     **Path to Exercise.** 
 
     * PyTorch version: ``spinup/exercises/pytorch/problem_set_1/exercise1_3.py``
-    
-    * Tensorflow version: ``spinup/exercises/tf1/problem_set_1/exercise1_3.py``
 
     **Path to Solution.** 
 
     * PyTorch version: ``spinup/algos/pytorch/td3/td3.py``
-
-    * Tensorflow version: ``spinup/algos/tf1/td3/td3.py``
 
     **Instructions.** Implement the main mathematical logic for the TD3 algorithm.
 
@@ -78,7 +66,7 @@ Problem Set 1: Basics of Implementation
 
     Implement your solution in ``exercise1_3.py``, and run that file to see the results of your work. There is no automatic checking for this exercise.
 
-    **Evaluation Criteria.** Evaluate your code by running ``exercise1_3.py`` with HalfCheetah-v5, InvertedPendulum-v2, and one other Gym MuJoCo environment of your choosing (set via the ``--env`` flag). It is set up to use smaller neural networks (hidden sizes [128,128]) than typical for TD3, with a maximum episode length of 150, and to run for only 10 epochs. The goal is to see significant learning progress relatively quickly (in terms of wall clock time). Experiments will likely take on the order of ~10 minutes. 
+    **Evaluation Criteria.** Evaluate your code by running ``exercise1_3.py`` with HalfCheetah-v5, InvertedPendulum-v5, and one other Gymnasium MuJoCo environment of your choosing (set via the ``--env`` flag). It is set up to use smaller neural networks (hidden sizes [128,128]) than typical for TD3, with a maximum episode length of 150, and to run for only 10 epochs. The goal is to see significant learning progress relatively quickly (in terms of wall clock time). Experiments will likely take on the order of ~10 minutes. 
 
     Use the ``--use_soln`` flag to run Spinning Up's TD3 instead of your implementation. Anecdotally, within 10 epochs, the score in HalfCheetah should go over 300, and the score in InvertedPendulum should max out at 150.
 
@@ -102,7 +90,7 @@ Problem Set 2: Algorithm Failure Modes
 
     .. parsed-literal::
 
-        python -m spinup.run trpo --env Hopper-v2 --train_v_iters[v] 0 80 --exp_name ex2-1 --epochs 250 --steps_per_epoch 4000 --seed 0 10 20 --dt
+        python -m spinup.run trpo --env Hopper-v5 --train_v_iters[v] 0 80 --exp_name ex2-1 --epochs 250 --steps_per_epoch 4000 --seed 0 10 20 --dt
 
     and plot the results. (These experiments might take ~10 minutes each, and this command runs six of them.) What do you find?
 
@@ -111,8 +99,6 @@ Problem Set 2: Algorithm Failure Modes
     **Path to Exercise.** 
 
     * PyTorch version: ``spinup/exercises/pytorch/problem_set_2/exercise2_2.py``
-    
-    * Tensorflow version: ``spinup/exercises/tf1/problem_set_2/exercise2_2.py``
 
     **Path to Solution.** `Solution available here. <../spinningup/exercise2_2_soln.html>`_
 

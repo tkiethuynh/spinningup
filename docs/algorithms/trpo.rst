@@ -158,28 +158,35 @@ Documentation
 
     Spinning Up has both PyTorch and Tensorflow 2 implementations of TRPO.
 
-    .. autofunction:: spinup.trpo_tf2
 
-Saved Model Contents
---------------------
+Documentation: PyTorch Version
+------------------------------
 
-The computation graph saved by the logger includes:
+.. autofunction:: spinup.trpo_pytorch
 
-========  ====================================================================
-Key       Value
-========  ====================================================================
-``x``     Tensorflow placeholder for state input.
-``pi``    Samples an action from the agent, conditioned on states in ``x``.
-``v``     Gives value estimate for states in ``x``. 
-========  ====================================================================
+Saved Model Contents: PyTorch Version
+-------------------------------------
+
+The PyTorch saved model can be loaded with ``ac = torch.load('path/to/model.pt', weights_only=False)``, yielding an actor-critic object (``ac``) that has ``pi``, ``v``, ``step``, and ``act`` methods.
+
+
+Documentation: Tensorflow Version
+---------------------------------
+
+.. autofunction:: spinup.trpo_tf2
+
+Saved Model Contents: Tensorflow Version
+----------------------------------------
+
+The Tensorflow 2 saved model is stored as a Keras 3 archive (``tf2_save/model.keras``) containing an ``MLPActorCritic`` model with ``pi`` and ``v`` submodules and an ``act(obs, deterministic=False)`` method.
 
 This saved model can be accessed either by
 
 * running the trained policy with the `test_policy.py`_ tool,
-* or loading the whole saved graph into a program with `restore_tf_graph`_. 
+* or loading the saved Keras model into a program with `restore_tf2_model`_.
 
 .. _`test_policy.py`: ../user/saving_and_loading.html#loading-and-running-trained-policies
-.. _`restore_tf_graph`: ../utils/logger.html#spinup.utils.logx.restore_tf_graph
+.. _`restore_tf2_model`: ../utils/logger.html#spinup.utils.logx.restore_tf2_model
 
 References
 ==========

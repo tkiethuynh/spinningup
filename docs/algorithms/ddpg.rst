@@ -186,7 +186,7 @@ Documentation: PyTorch Version
 Saved Model Contents: PyTorch Version
 -------------------------------------
 
-The PyTorch saved model can be loaded with ``ac = torch.load('path/to/model.pt')``, yielding an actor-critic object (``ac``) that has the properties described in the docstring for ``ddpg_pytorch``. 
+The PyTorch saved model can be loaded with ``ac = torch.load('path/to/model.pt', weights_only=False)``, yielding an actor-critic object (``ac``) that has the properties described in the docstring for ``ddpg_pytorch``. 
 
 You can get actions from this model with
 
@@ -203,25 +203,15 @@ Documentation: Tensorflow Version
 Saved Model Contents: Tensorflow Version
 ----------------------------------------
 
-The computation graph saved by the logger includes:
-
-========  ====================================================================
-Key       Value
-========  ====================================================================
-``x``     Tensorflow placeholder for state input.
-``a``     Tensorflow placeholder for action input.
-``pi``    | Deterministically computes an action from the agent, conditioned 
-          | on states in ``x``.
-``q``     Gives action-value estimate for states in ``x`` and actions in ``a``.
-========  ====================================================================
+The Tensorflow 2 saved model is stored as a Keras 3 archive (``tf2_save/model.keras``) containing an ``MLPActorCritic`` model with ``pi`` and ``q`` submodules and an ``act(obs, deterministic=False)`` method.
 
 This saved model can be accessed either by
 
 * running the trained policy with the `test_policy.py`_ tool,
-* or loading the whole saved graph into a program with `restore_tf_graph`_. 
+* or loading the saved Keras model into a program with `restore_tf2_model`_.
 
 .. _`test_policy.py`: ../user/saving_and_loading.html#loading-and-running-trained-policies
-.. _`restore_tf_graph`: ../utils/logger.html#spinup.utils.logx.restore_tf_graph
+.. _`restore_tf2_model`: ../utils/logger.html#spinup.utils.logx.restore_tf2_model
 
 
 References

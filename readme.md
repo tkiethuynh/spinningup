@@ -1,83 +1,84 @@
 # Spinning Up in Deep RL (Modernized)
 
-**Status:** Active & Modernized (PyTorch 2.1.2, TensorFlow 2.15, Gymnasium)
+**Status:** Active & Modernized (PyTorch 2.10.0, TensorFlow 2.20.0, Gymnasium)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.10–3.13](https://img.shields.io/badge/python-3.10%E2%80%933.13-blue.svg)](https://www.python.org/downloads/)
 [![GPU Enabled](https://img.shields.io/badge/GPU-Accelerated-green.svg)](#hardware-acceleration)
 
-Welcome to the **modernized** version of OpenAI's [Spinning Up in Deep RL](https://spinningup.openai.com)! This repository has been updated to support the latest software ecosystems while preserving the educational clarity and standalone nature of the original implementations.
+Welcome to the **modernized** version of OpenAI's [Spinning Up in Deep RL](https://spinningup.openai.com)! This repository updates the ecosystem to modern PyTorch, TensorFlow 2 / Keras 3, and Gymnasium while preserving the educational clarity and standalone nature of the original implementations.
 
 ## What's New in the Modernized Version?
 
-This fork transforms the legacy Spinning Up codebase into a production-ready research environment:
-
-*   **Gymnasium Integration:** Fully migrated from `gym` to the latest `gymnasium` API. Standardized on `v5` MuJoCo environments (e.g., `HalfCheetah-v5`).
-*   **TensorFlow 2.x Migration:** Complete rewrite of the TensorFlow backend. Gone are sessions and placeholders; the new implementation uses **Keras Models**, **Eager Execution**, and `tf.GradientTape`.
-*   **PyTorch 2.x Optimization:** Pinned to PyTorch 2.1.2 for native dependency harmony. Includes support for **`torch.compile()`** for superior graph-mode performance.
-*   **Hardware Acceleration:** Native support for GPU/CUDA across both frameworks.
-*   **Strict Dependency Alignment:** A custom initialization system that guarantees native GPU sharing between TensorFlow and PyTorch without fragile runtime hacks.
-*   **Type Hinting & Modern Python:** Comprehensive Python type hints added to all core algorithms and utilities for enhanced developer experience.
+* **Gymnasium Integration:** Fully migrated from `gym` to `gymnasium` (`>=1.0.0`) with separated `terminated` vs `truncated` handling across all on-policy bootstrapping and off-policy replay buffers, standardized on `v5` MuJoCo tasks (e.g., `HalfCheetah-v5`).
+* **TensorFlow 2.x / Keras 3 Migration:** Subclassed `tf.keras.Model` architectures with `@tf.keras.utils.register_keras_serializable`, eager + `@tf.function` `tf.GradientTape` training loops, `.keras` model persistence, and full `MpiAdamOptimizer` synchronization.
+* **PyTorch 2.x Optimization & Complete TRPO:** Aligned on `torch==2.10.0` with pure-tensor `torch.compile()` loss graph optimization (`--compile`), device-safe `mpi_pytorch` gradient/parameter synchronization, and a full PyTorch TRPO implementation alongside VPG, PPO, DDPG, TD3, and SAC.
+* **CUDA 12 / cuDNN 9 Dependency Alignment:** `torch==2.10.0` + `tensorflow==2.20.0` align natively on CUDA 12 and cuDNN 9 (`libcudnn.so.9`), with idempotent CUDA 12 / XLA initialization in `spinup.utils.device_utils`.
 
 ## Installation
 
 ### Prerequisites
-- Python 3.10 or greater
-- OpenMPI (for parallel execution)
-- SWIG (required for Box2D environments: `sudo apt install swig`)
-- NVIDIA Drivers (for GPU support)
+- Python 3.10 through 3.13
+- OpenMPI (for parallel execution: `openmpi-bin`, `libopenmpi-dev`)
+- SWIG and Python development headers (optional, for `[box2d]` environments)
+- NVIDIA Drivers (optional, for GPU support)
 
 ### Setup
 ```bash
-# Create and activate conda environment
-conda create -n spinningup python=3.10
+# Create and activate conda or venv environment (Python 3.10–3.13)
+conda create -n spinningup python=3.12
 conda activate spinningup
 
 # Install system dependencies (Ubuntu/Debian)
-sudo apt update && sudo apt install -y swig libopenmpi-dev
+sudo apt update && sudo apt install -y openmpi-bin libopenmpi-dev swig python3-dev
 
 # Clone the repository
 git clone https://github.com/tkiethuynh/spinningup.git
 cd spinningup
 
-# Install core package (don't forget the dot at the end)
+# Install core package (classic_control + mujoco included)
 pip install -e .
 
-# Install hardware acceleration support
-pip install nvidia-tensorrt
+# Optional extras: Box2D, Atari, Gemini analysis helper, or all
+# pip install -e ".[box2d]"
+# pip install -e ".[all]"
 ```
 
 ## Hardware Acceleration
 
-The system automatically detects your GPU and configures the environment. For detailed technical information on how we handle library version mapping, see the [Modernization Report](docs/modernization.pdf).
+Both backends automatically select available accelerators (`cuda` / `mps` / `cpu` for PyTorch; `/GPU:0` / `/device:CPU:0` for TensorFlow). See the [Modernization Report](docs/modernization.md) for technical details.
 
-### Running on GPU
-Backends automatically detect and use the most capable device.
 ```bash
-# Run PPO with PyTorch on GPU
+# Run PPO with PyTorch
 python -m spinup.run ppo --env CartPole-v1
 
-# Run PPO with TensorFlow 2 on GPU
+# Run PPO with TensorFlow 2
 python -m spinup.run ppo_tf2 --env CartPole-v1
 
-# Enable PyTorch graph compilation for speed
+# Enable PyTorch loss-graph compilation
 python -m spinup.run ppo --env HalfCheetah-v5 --compile
 ```
 
 ## Documentation
 
-- **[Modernization Report](docs/modernization.pdf)**: Comprehensive technical details on the architectural changes and GPU resolution strategies.
-- **[Spinning Up Site](https://spinningup.openai.com)**: The original educational content (theory and background).
+- **[Modernization Report](docs/modernization.md)**: Architectural notes, dependency alignment, and verification details (`docs/modernization.tex` for LaTeX source).
+- **[Spinning Up Site](https://spinningup.openai.com)**: Original RL theory and educational content.
 
 ## Included Algorithms
 
-All algorithms are implemented in both **PyTorch** and **TensorFlow 2**:
-- Vanilla Policy Gradient (VPG)
-- Trust Region Policy Optimization (TRPO)
-- Proximal Policy Optimization (PPO)
-- Deep Deterministic Policy Gradient (DDPG)
-- Twin Delayed DDPG (TD3)
-- Soft Actor-Critic (SAC)
+All six core algorithms are implemented in both **PyTorch** and **TensorFlow 2**:
+- Vanilla Policy Gradient (`vpg_pytorch`, `vpg_tf2`)
+- Trust Region Policy Optimization (`trpo_pytorch`, `trpo_tf2`)
+- Proximal Policy Optimization (`ppo_pytorch`, `ppo_tf2`)
+- Deep Deterministic Policy Gradient (`ddpg_pytorch`, `ddpg_tf2`)
+- Twin Delayed DDPG (`td3_pytorch`, `td3_tf2`)
+- Soft Actor-Critic (`sac_pytorch`, `sac_tf2`)
+
+## Testing
+
+```bash
+pytest -v test/
+```
 
 ## Citing
 

@@ -1,14 +1,18 @@
+import math
+import time
+from typing import Callable, Dict, Any
+
+import gymnasium as gym
 import numpy as np
 import torch
+import torch.nn.functional as F
 from torch.optim import Adam
-import gymnasium as gym
-import time
-from typing import Callable, Optional, Dict, Any
+
 import spinup.algos.pytorch.vpg.core as core
+from spinup.utils.device_utils import get_torch_device
 from spinup.utils.logx import EpochLogger
 from spinup.utils.mpi_pytorch import setup_pytorch_for_mpi, sync_params, mpi_avg_grads
-from spinup.utils.mpi_tools import mpi_fork, mpi_avg, proc_id, mpi_statistics_scalar, num_procs
-from spinup.utils.device_utils import get_torch_device
+from spinup.utils.mpi_tools import mpi_fork, proc_id, mpi_statistics_scalar, num_procs
 
 
 class VPGBuffer:
@@ -49,25 +53,19 @@ class VPGBuffer:
         the whole trajectory to compute advantage estimates with GAE-Lambda,
         as well as compute the rewards-to-go for each state, to use as
         the targets for the value function.
-
-        The "last_val" argument should be 0 if the trajectory ended
-        because the agent reached a terminal state (died), and otherwise
-        should be V(s_T), the value function estimated for the last state.
-        This allows us to bootstrap the reward-to-go calculation to account
-        for timesteps beyond the arbitrary episode horizon (or epoch cutoff).
         """
 
         path_slice = slice(self.path_start_idx, self.ptr)
         rews = np.append(self.rew_buf[path_slice], last_val)
         vals = np.append(self.val_buf[path_slice], last_val)
-        
+
         # the next two lines implement GAE-Lambda advantage calculation
         deltas = rews[:-1] + self.gamma * vals[1:] - vals[:-1]
         self.adv_buf[path_slice] = core.discount_cumsum(deltas, self.gamma * self.lam)
-        
+
         # the next line computes rewards-to-go, to be targets for the value function
         self.ret_buf[path_slice] = core.discount_cumsum(rews, self.gamma)[:-1]
-        
+
         self.path_start_idx = self.ptr
 
     def get(self, device: torch.device):
@@ -80,115 +78,29 @@ class VPGBuffer:
         self.ptr, self.path_start_idx = 0, 0
         # the next two lines implement the advantage normalization trick
         adv_mean, adv_std = mpi_statistics_scalar(self.adv_buf)
-        self.adv_buf = (self.adv_buf - adv_mean) / adv_std
+        self.adv_buf = (self.adv_buf - adv_mean) / (adv_std + 1e-8)
         data = dict(obs=self.obs_buf, act=self.act_buf, ret=self.ret_buf,
                     adv=self.adv_buf, logp=self.logp_buf)
-        return {k: torch.as_tensor(v, dtype=torch.float32, device=device) for k,v in data.items()}
+        return {k: torch.as_tensor(v, dtype=torch.float32, device=device) for k, v in data.items()}
 
 
-
-def vpg(env_fn: Callable[[], gym.Env], 
-        actor_critic: type[torch.nn.Module] = core.MLPActorCritic, 
-        ac_kwargs: Dict[str, Any] = dict(), 
-        seed: int = 0, 
-        steps_per_epoch: int = 4000, 
-        epochs: int = 50, 
-        gamma: float = 0.99, 
+def vpg(env_fn: Callable[[], gym.Env],
+        actor_critic: type[torch.nn.Module] = core.MLPActorCritic,
+        ac_kwargs: Dict[str, Any] = dict(),
+        seed: int = 0,
+        steps_per_epoch: int = 4000,
+        epochs: int = 50,
+        gamma: float = 0.99,
         pi_lr: float = 3e-4,
-        vf_lr: float = 1e-3, 
-        train_v_iters: int = 80, 
-        lam: float = 0.97, 
+        vf_lr: float = 1e-3,
+        train_v_iters: int = 80,
+        lam: float = 0.97,
         max_ep_len: int = 1000,
-        logger_kwargs: Dict[str, Any] = dict(), 
+        logger_kwargs: Dict[str, Any] = dict(),
         save_freq: int = 10,
         compile: bool = False):
     """
-    Vanilla Policy Gradient 
-
-    (with GAE-Lambda for advantage estimation)
-
-    Args:
-        env_fn : A function which creates a copy of the environment.
-            The environment must satisfy the OpenAI Gym API.
-
-        actor_critic: The constructor method for a PyTorch Module with a 
-            ``step`` method, an ``act`` method, a ``pi`` module, and a ``v`` 
-            module. The ``step`` method should accept a batch of observations 
-            and return:
-
-            ===========  ================  ======================================
-            Symbol       Shape             Description
-            ===========  ================  ======================================
-            ``a``        (batch, act_dim)  | Numpy array of actions for each 
-                                           | observation.
-            ``v``        (batch,)          | Numpy array of value estimates
-                                           | for the provided observations.
-            ``logp_a``   (batch,)          | Numpy array of log probs for the
-                                           | actions in ``a``.
-            ===========  ================  ======================================
-
-            The ``act`` method behaves the same as ``step`` but only returns ``a``.
-
-            The ``pi`` module's forward call should accept a batch of 
-            observations and optionally a batch of actions, and return:
-
-            ===========  ================  ======================================
-            Symbol       Shape             Description
-            ===========  ================  ======================================
-            ``pi``       N/A               | Torch Distribution object, containing
-                                           | a batch of distributions describing
-                                           | the policy for the provided observations.
-            ``logp_a``   (batch,)          | Optional (only returned if batch of
-                                           | actions is given). Tensor containing 
-                                           | the log probability, according to 
-                                           | the policy, of the provided actions.
-                                           | If actions not given, will contain
-                                           | ``None``.
-            ===========  ================  ======================================
-
-            The ``v`` module's forward call should accept a batch of observations
-            and return:
-
-            ===========  ================  ======================================
-            Symbol       Shape             Description
-            ===========  ================  ======================================
-            ``v``        (batch,)          | Tensor containing the value estimates
-                                           | for the provided observations. (Critical: 
-                                           | make sure to flatten this!)
-            ===========  ================  ======================================
-
-        ac_kwargs (dict): Any kwargs appropriate for the ActorCritic object 
-            you provided to VPG.
-
-        seed (int): Seed for random number generators.
-
-        steps_per_epoch (int): Number of steps of interaction (state-action pairs) 
-            for the agent and the environment in each epoch.
-
-        epochs (int): Number of epochs of interaction (equivalent to
-            number of policy updates) to perform.
-
-        gamma (float): Discount factor. (Always between 0 and 1.)
-
-        pi_lr (float): Learning rate for policy optimizer.
-
-        vf_lr (float): Learning rate for value function optimizer.
-
-        train_v_iters (int): Number of gradient descent steps to take on 
-            value function per epoch.
-
-        lam (float): Lambda for GAE-Lambda. (Always between 0 and 1,
-            close to 1.)
-
-        max_ep_len (int): Maximum length of trajectory / episode / rollout.
-
-        logger_kwargs (dict): Keyword args for EpochLogger.
-
-        save_freq (int): How often (in terms of gap between epochs) to save
-            the current policy and value function.
-
-        compile (bool): Whether to use torch.compile for the model.
-
+    Vanilla Policy Gradient (with GAE-Lambda for advantage estimation)
     """
 
     # Special function to avoid certain slowdowns from PyTorch + MPI combo.
@@ -215,41 +127,59 @@ def vpg(env_fn: Callable[[], gym.Env],
     # Create actor-critic module
     ac = actor_critic(env.observation_space, env.action_space, **ac_kwargs).to(device)
 
-    # Optional torch.compile
-    if compile and hasattr(torch, 'compile'):
-        logger.log('Compiling actor-critic model...')
-        ac = torch.compile(ac)
-
     # Sync params across processes
     sync_params(ac)
 
     # Count variables
     var_counts = tuple(core.count_vars(module) for module in [ac.pi, ac.v])
-    logger.log('\nNumber of parameters: \t pi: %d, \t v: %d\n'%var_counts)
+    logger.log('\nNumber of parameters: \t pi: %d, \t v: %d\n' % var_counts)
 
     # Set up experience buffer
     local_steps_per_epoch = int(steps_per_epoch / num_procs())
     buf = VPGBuffer(obs_dim, act_dim, local_steps_per_epoch, gamma, lam)
 
+    # Pure-tensor loss kernels (graph-friendly for torch.compile)
+    def _loss_pi_tensors(obs, act, adv, logp_old):
+        if isinstance(ac.pi, core.MLPCategoricalActor):
+            logits = ac.pi.logits_net(obs)
+            log_probs = F.log_softmax(logits, dim=-1)
+            logp = torch.gather(log_probs, -1, act.long().unsqueeze(-1)).squeeze(-1)
+            probs = torch.exp(log_probs)
+            ent = -(probs * log_probs).sum(dim=-1).mean()
+        elif isinstance(ac.pi, core.MLPGaussianActor):
+            mu = ac.pi.mu_net(obs)
+            std = torch.exp(ac.pi.log_std)
+            logp = (-0.5 * (((act - mu) / std) ** 2 + 2.0 * ac.pi.log_std + math.log(2.0 * math.pi))).sum(dim=-1)
+            ent = (0.5 + 0.5 * math.log(2.0 * math.pi) + ac.pi.log_std).mean()
+        else:
+            pi, logp = ac.pi(obs, act)
+            ent = pi.entropy().mean()
+
+        loss_pi = -(logp * adv).mean()
+        approx_kl = (logp_old - logp).mean()
+        return loss_pi, approx_kl, ent
+
+    def _loss_v_tensors(obs, ret):
+        return ((ac.v(obs) - ret) ** 2).mean()
+
+    loss_pi_fn = _loss_pi_tensors
+    loss_v_fn = _loss_v_tensors
+    if compile and hasattr(torch, 'compile'):
+        logger.log('Compiling loss computation graphs...')
+        loss_pi_fn = torch.compile(_loss_pi_tensors)
+        loss_v_fn = torch.compile(_loss_v_tensors)
+
     # Set up function for computing VPG policy loss
     def compute_loss_pi(data):
-        obs, act, adv, logp_old = data['obs'], data['act'], data['adv'], data['logp']
-
-        # Policy loss
-        pi, logp = ac.pi(obs, act)
-        loss_pi = -(logp * adv).mean()
-
-        # Useful extra info
-        approx_kl = (logp_old - logp).mean().item()
-        ent = pi.entropy().mean().item()
-        pi_info = dict(kl=approx_kl, ent=ent)
-
+        loss_pi, approx_kl, ent = loss_pi_fn(
+            data['obs'], data['act'], data['adv'], data['logp']
+        )
+        pi_info = dict(kl=approx_kl.item(), ent=ent.item())
         return loss_pi, pi_info
 
     # Set up function for computing value loss
     def compute_loss_v(data):
-        obs, ret = data['obs'], data['ret']
-        return ((ac.v(obs) - ret)**2).mean()
+        return loss_v_fn(data['obs'], data['ret'])
 
     # Set up optimizers for policy and value function
     pi_optimizer = Adam(ac.pi.parameters(), lr=pi_lr)
@@ -290,7 +220,8 @@ def vpg(env_fn: Callable[[], gym.Env],
 
     # Prepare for interaction with environment
     start_time = time.time()
-    o, _ = env.reset()
+    o, _ = env.reset(seed=seed)
+    env.action_space.seed(seed)
     ep_ret, ep_len = 0, 0
 
     # Main loop: collect experience in env and update/log each epoch
@@ -299,37 +230,33 @@ def vpg(env_fn: Callable[[], gym.Env],
             a, v, logp = ac.step(torch.as_tensor(o, dtype=torch.float32, device=device))
 
             next_o, r, terminated, truncated, _ = env.step(a)
-            d = terminated or truncated
             ep_ret += r
             ep_len += 1
 
             # save and log
             buf.store(o, a, r, v, logp)
             logger.store(VVals=v)
-            
+
             # Update obs (critical!)
             o = next_o
 
-            timeout = ep_len == max_ep_len
-            terminal = d or timeout
-            epoch_ended = t==local_steps_per_epoch-1
+            timeout = (ep_len == max_ep_len) or truncated
+            terminal = terminated or timeout
+            epoch_ended = t == local_steps_per_epoch - 1
 
             if terminal or epoch_ended:
-                # if trajectory didn't reach terminal state, bootstrap value target
-                if timeout or epoch_ended:
-                    _, v, _ = ac.step(torch.as_tensor(o, dtype=torch.float32, device=device))
+                if terminated:
+                    v = 0.0
                 else:
-                    v = 0
+                    _, v, _ = ac.step(torch.as_tensor(o, dtype=torch.float32, device=device))
                 buf.finish_path(v)
                 if terminal:
-                    # only save EpRet / EpLen if trajectory finished
                     logger.store(EpRet=ep_ret, EpLen=ep_len)
                 o, _ = env.reset()
                 ep_ret, ep_len = 0, 0
 
-
         # Save model
-        if (epoch % save_freq == 0) or (epoch == epochs-1):
+        if (epoch % save_freq == 0) or (epoch == epochs - 1):
             logger.save_state({'env': env}, None)
 
         # Perform VPG update!
@@ -340,15 +267,16 @@ def vpg(env_fn: Callable[[], gym.Env],
         logger.log_tabular('EpRet', with_min_and_max=True)
         logger.log_tabular('EpLen', average_only=True)
         logger.log_tabular('VVals', with_min_and_max=True)
-        logger.log_tabular('TotalEnvInteracts', (epoch+1)*steps_per_epoch)
+        logger.log_tabular('TotalEnvInteracts', (epoch + 1) * steps_per_epoch)
         logger.log_tabular('LossPi', average_only=True)
         logger.log_tabular('LossV', average_only=True)
         logger.log_tabular('DeltaLossPi', average_only=True)
         logger.log_tabular('DeltaLossV', average_only=True)
         logger.log_tabular('Entropy', average_only=True)
         logger.log_tabular('KL', average_only=True)
-        logger.log_tabular('Time', time.time()-start_time)
+        logger.log_tabular('Time', time.time() - start_time)
         logger.dump_tabular()
+
 
 if __name__ == '__main__':
     import argparse
@@ -370,7 +298,7 @@ if __name__ == '__main__':
     from spinup.utils.run_utils import setup_logger_kwargs
     logger_kwargs = setup_logger_kwargs(args.exp_name, args.seed)
 
-    vpg(lambda : gym.make(args.env), actor_critic=core.MLPActorCritic,
-        ac_kwargs=dict(hidden_sizes=[args.hid]*args.l), gamma=args.gamma, 
+    vpg(lambda: gym.make(args.env), actor_critic=core.MLPActorCritic,
+        ac_kwargs=dict(hidden_sizes=[args.hid] * args.l), gamma=args.gamma,
         seed=args.seed, steps_per_epoch=args.steps, epochs=args.epochs,
         logger_kwargs=logger_kwargs, compile=args.compile)

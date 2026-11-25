@@ -24,11 +24,11 @@ Installing Python
 
 We recommend installing Python through Anaconda. Anaconda is a library that includes Python and many useful packages for Python, as well as an environment manager called conda that makes package management simple.
 
-Follow `the installation instructions`_ for Anaconda here. Download and install Anaconda3. Then create a conda Python 3.10 env for organizing packages used in Spinning Up:
+Follow `the installation instructions`_ for Anaconda here. Download and install Anaconda3. Then create a conda Python 3.12 env (Python 3.10–3.13 supported) for organizing packages used in Spinning Up:
 
 .. parsed-literal::
 
-    conda create -n spinningup python=3.10
+    conda create -n spinningup python=3.12
 
 To use Python from the environment you just created, activate the environment with:
 
@@ -58,7 +58,7 @@ Ubuntu
 
 .. parsed-literal::
 
-    sudo apt-get update && sudo apt-get install libopenmpi-dev
+    sudo apt-get update && sudo apt-get install -y openmpi-bin libopenmpi-dev swig python3-dev
 
 
 Mac OS X
@@ -67,7 +67,7 @@ Installation of system packages on Mac requires Homebrew_. With Homebrew install
 
 .. parsed-literal::
 
-    brew install openmpi
+    brew install openmpi swig
 
 .. _Homebrew: https://brew.sh
 
@@ -82,20 +82,20 @@ Installing Spinning Up
 
 .. admonition:: You Should Know
 
-    Spinning Up defaults to installing everything in Gymnasium **except** the MuJoCo environments. In case you run into any trouble with the Gymnasium installation, check out the `Gymnasium`_ github page for help. If you want the MuJoCo environments, see the optional installation section below.
+    Spinning Up installs Gymnasium Classic Control and open-source MuJoCo environments by default. To install Box2D (e.g., ``LunarLander-v3``) or all optional extras, run ``pip install -e ".[box2d]"`` or ``pip install -e ".[all]"``. Check out the `Gymnasium`_ github page for help.
 
 .. _`Gymnasium`: https://github.com/Farama-Foundation/Gymnasium
 
 Check Your Install
 ==================
 
-To see if you've successfully installed Spinning Up, try running PPO in the LunarLander-v2 environment with
+To see if you've successfully installed Spinning Up, try running PPO in the ``CartPole-v1`` (or ``LunarLander-v3`` with ``.[box2d]``) environment with
 
 .. parsed-literal::
 
-    python -m spinup.run ppo --hid "[32,32]" --env LunarLander-v2 --exp_name installtest --gamma 0.999
+    python -m spinup.run ppo --hid "[32,32]" --env CartPole-v1 --exp_name installtest --gamma 0.999
 
-This might run for around 10 minutes, and you can leave it going in the background while you continue reading through documentation. This won't train the agent to completion, but will run it for long enough that you can see *some* learning progress when the results come in.
+This runs quickly so you can see learning progress right away.
 
 After it finishes training, watch a video of the trained policy with
 
@@ -110,27 +110,13 @@ And plot the results with
     python -m spinup.run plot data/installtest/installtest_s0
 
 
-Installing MuJoCo (Optional)
-============================
+MuJoCo Environments
+===================
 
-First, go to the `mujoco-py`_ github page. Follow the installation instructions in the README, which describe how to install the MuJoCo physics engine and the mujoco-py package (which allows the use of MuJoCo from Python). 
+Gymnasium's modern ``v5`` MuJoCo environments use the free, open-source `MuJoCo`_ Python bindings and are included automatically when installing Spinning Up.
 
-.. admonition:: You Should Know
-
-    In order to use the MuJoCo simulator, you will need to get a `MuJoCo license`_. Free 30-day licenses are available to anyone, and free 1-year licenses are available to full-time students.
-
-Once you have installed MuJoCo, install the corresponding Gym environments with
+Check that MuJoCo environments are working by running PPO in ``Walker2d-v5``:
 
 .. parsed-literal::
 
-    pip install gymnasium[mujoco]
-
-And then check that things are working by running PPO in the Walker2d-v2 environment with
-
-.. parsed-literal::
-
-    python -m spinup.run ppo --hid "[32,32]" --env Walker2d-v2 --exp_name mujocotest
-
-
-.. _`mujoco-py`: https://github.com/openai/mujoco-py
-.. _`MuJoCo license`: https://www.roboti.us/license.html
+    python -m spinup.run ppo --hid "[32,32]" --env Walker2d-v5 --exp_name mujocotest

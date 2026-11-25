@@ -1,40 +1,23 @@
 # Gemini CLI foundational instructions for Spinning Up Modern
 
-This project is a modernized version of OpenAI's Spinning Up in Deep RL. The codebase has been updated to use latest stable versions of all core libraries while maintaining the educational clarity of the original.
+This project is a modernized version of OpenAI's Spinning Up in Deep RL. The codebase targets modern PyTorch, TensorFlow 2 / Keras 3, and Gymnasium while maintaining the educational clarity of the original.
 
 ### Dependency Management & Hardware Acceleration
-- **Strict Dependency Alignment**: To ensure native GPU sharing between TensorFlow 2.15 and PyTorch without runtime hacks or `LD_LIBRARY_PATH` manipulation, the project pins `torch==2.1.2` and `tensorflow==2.15.0`. This specific combination natively resolves the `cuDNN` version conflict (v8 vs v9) on modern NVIDIA installations. Always maintain these versions in `setup.py`.
+- **Dependency Alignment**: `pyproject.toml` pins `torch==2.10.0` and `tensorflow==2.20.0` so both frameworks align natively on CUDA 12 / cuDNN 9 (`libcudnn.so.9`) across Python 3.10–3.13 without ABI clashes. Keep `device_utils.py` idempotent and free of `$HOME` side effects.
 
 ### Framework-Specific Guidelines
 
 #### PyTorch 2.x
-- **In-Place Updates**: Use `torch.no_grad()` and `target_param.copy_(polyak * target_param + (1 - polyak) * param)` for target network updates instead of deprecated `.data` attribute manipulation.
-- **Device Placement**: Always move models to the device returned by `get_torch_device()` and ensure input tensors are moved before inference, especially in testing utilities.
-- **Graph Optimization**: Support `torch.compile()` via a standard `--compile` flag in algorithm entry points.
+- **In-Place Updates**: Use `torch.no_grad()` and `target_param.copy_(polyak * target_param + (1 - polyak) * param)` for target network updates instead of `.data` attribute manipulation.
+- **Device Placement**: Always move models to `get_torch_device()`, move input tensors to device before inference, and stage MPI buffers on CPU before `Bcast`/`Allreduce`.
+- **Graph Optimization**: Compile pure-tensor loss functions (not outer `MLPActorCritic` containers without `forward`) when `--compile` is enabled.
 
-#### TensorFlow 2.x
-- **Keras Serialization**: Always implement `get_config()` in subclassed `tf.keras.Model` classes. Ensure that complex objects like Gymnasium spaces are not serialized directly; store only necessary primitive parameters.
-- **Eager Logic**: Use `tf.GradientTape` for all training loops and wrap operations in `with tf.device(device):` contexts.
-- **Mathematical Precision**: Use explicit `entropy()` methods on actor models for exact calculations.
+#### TensorFlow 2.x / Keras 3
+- **Keras Serialization**: Register every subclassed `tf.keras.Model` with `@tf.keras.utils.register_keras_serializable`, accept `**kwargs`, track weights via `self.add_weight(...)`, implement `get_config()` / `from_config()` using primitive space metadata only, and save models with `.keras` extensions.
+- **Eager & Graph Logic**: Use `tf.GradientTape` inside `@tf.function` training steps (with `optimizer.build(...)` called eagerly beforehand) and `with tf.device(device):` contexts.
+- **Mathematical Precision**: In TRPO, always compute forward KL $D_{\mathrm{KL}}(\pi_{\theta_k} \,\|\, \pi_\theta)$ against a detached snapshot of the pre-update policy.
 
-### Logging & Utilities
-- **Robustness**: The `EpochLogger` is enhanced to handle empty data batches during epoch transitions without crashing.
-- **Model Restoration**: Use `restore_tf2_model` (Keras-native) for TF2 models.
-
-
-
-## Project Standards
-
-### Code Style & Architecture
-- **Standalone Implementations:** Algorithms (PPO, DDPG, SAC, etc.) remain standalone within their backend directories (`spinup/algos/pytorch` and `spinup/algos/tf2`).
-- **Educational Clarity:** Variable names and documentation follow RL theory standards.
-- **Logging:** Uses the enhanced `spinup.utils.logx.EpochLogger` for all training loops, with support for modern serialization formats (PT and SavedModel).
-
-### Tooling & Commands
-- **Testing:** Use `pytest` for all verification.
-- **Modernization Documentation:** Technical details of the upgrade are available in `docs/modernization.tex`.
-
-### Development Workflow
-- **Verification:** Always verify changes by running the algorithm on a simple environment using the provided run utilities:
-  `python -m spinup.run ppo --env CartPole-v1`
-- **Documentation:** Maintain the LaTeX report and standard `.rst` files when modifying algorithm logic.
+### Environment & Logging Standards
+- **Gymnasium Semantics**: Never collapse `terminated` and `truncated` into a single `done` for bootstrapping or replay storage. Only true `terminated` zeroes future value bootstrap.
+- **Logger & MPI Safety**: `EpochLogger` and `mpi_statistics_scalar` must always participate across all MPI ranks even on empty epochs (`np.nan` placeholder) so headers stay consistent and collectives never deadlock.
+- **Verification**: Run `pytest -v test/` after edits and verify `python -m spinup.run ppo --env CartPole-v1`.

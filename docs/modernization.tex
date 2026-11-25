@@ -3,8 +3,6 @@
 \usepackage{hyperref}
 \usepackage{listings}
 \usepackage{xcolor}
-\usepackage{tikz}
-\usetikzlibrary{shapes.geometric, arrows, positioning}
 \usepackage{booktabs}
 \usepackage{amsmath}
 
@@ -14,21 +12,21 @@
 \definecolor{backcolour}{rgb}{0.95,0.95,0.92}
 
 \lstdefinestyle{mystyle}{
-    backgroundcolor=\color{backcolour},   
+    backgroundcolor=\color{backcolour},
     commentstyle=\color{codegreen},
     keywordstyle=\color{magenta},
     numberstyle=\tiny\color{codegray},
     stringstyle=\color{codepurple},
     basicstyle=\ttfamily\footnotesize,
-    breakatwhitespace=false,         
-    breaklines=true,                 
-    captionpos=b,                    
-    keepspaces=true,                 
-    numbers=left,                    
-    numbersep=5pt,                  
-    showspaces=false,                
+    breakatwhitespace=false,
+    breaklines=true,
+    captionpos=b,
+    keepspaces=true,
+    numbers=left,
+    numbersep=5pt,
+    showspaces=false,
     showstringspaces=false,
-    showtabs=false,                  
+    showtabs=false,
     tabsize=2
 }
 
@@ -36,79 +34,48 @@
 
 \title{Spinning Up Modern: Technical Modernization Report}
 \author{Kiet Huynh}
-\date{April 2026}
+\date{November 2026}
 
 \begin{document}
 
 \maketitle
 
 \section{Core Architectural Evolution}
-This report details the technical implementation of the modernization of OpenAI's Spinning Up repository. The primary goal was to transition from legacy, unoptimized software to a production-grade, GPU-accelerated research environment using the latest available library versions.
+This report documents the modernization of OpenAI's Spinning Up repository to Python 3.10--3.13, Gymnasium ($\ge 1.0.0$), PyTorch 2.10.0, and TensorFlow 2.20.0 / Keras 3.
 
-\subsection{Gymnasium Migration and Environment Standardization}
-The project successfully transitioned from \texttt{gym} to \texttt{gymnasium} (v1.0+). 
-
+\subsection{Gymnasium Migration and Bootstrap Semantics}
+All algorithm implementations, examples, and exercises use the Gymnasium 5-tuple step API (\texttt{obs, rew, terminated, truncated, info}) and 2-tuple reset API (\texttt{obs, info}). True terminations (\texttt{terminated}) are strictly separated from time-limit truncations (\texttt{truncated} or \texttt{ep\_len == max\_ep\_len}):
 \begin{table}[h]
 \centering
-\caption{API and Environment Standardization}
+\caption{Gymnasium API and Environment Standardization}
 \begin{tabular}{@{}lll@{}}
 \toprule
 Feature & Implementation Detail & Version/API \\ \midrule
-Step Logic & Decomposed Terminal/Truncated signals & \texttt{obs, rew, term, trunc, info} \\
-Reset Logic & Information dictionary support & \texttt{obs, info} \\
-CartPole & Standardized on stable version & \texttt{CartPole-v1} \\
-HalfCheetah & Standardized on MuJoCo free release & \texttt{HalfCheetah-v5} \\ \bottomrule
+Step Logic & Separated terminal vs.\ truncated signals & \texttt{obs, rew, term, trunc, info} \\
+On-Policy Bootstrap & Zero only on \texttt{terminated}; bootstrap on cutoff & $V(s_T)$ on truncation \\
+Off-Policy Buffer & Store \texttt{terminated} only in \texttt{done\_buf} & Preserves future $Q_{\text{targ}}$ \\
+MuJoCo Tasks & Open-source MuJoCo \texttt{v5} suite & \texttt{HalfCheetah-v5}, \texttt{Walker2d-v5} \\ \bottomrule
 \end{tabular}
 \end{table}
 
 \section{Deep Learning Backends}
 
-\subsection{PyTorch 2.1.2: Graph Mode and GPU Coordination}
-PyTorch implementations have been optimized for modern hardware and software standards:
+\subsection{PyTorch 2.10.0: TRPO Parity, MPI Staging, and \texttt{torch.compile}}
 \begin{itemize}
-    \item \textbf{Kernel Fusion:} Integrated \texttt{torch.compile()} for JIT-optimized execution.
-    \item \textbf{Memory Management:} Fixed host-device transfer bottlenecks by standardizing on \texttt{.detach().cpu().numpy()} for all environment interactions.
-    \item \textbf{Type Safety:} Implemented comprehensive Python type hints for all Actor-Critic architectures.
+    \item \textbf{Complete PyTorch TRPO:} Added \texttt{spinup/algos/pytorch/trpo/} with exact Fisher-vector products via double \texttt{torch.autograd.grad} on forward KL divergence, conjugate gradients, and MPI-synchronized backtracking line search.
+    \item \textbf{Loss-Graph Compilation:} Pure-tensor loss kernels are compiled with \texttt{torch.compile} via \texttt{--compile}, keeping outer \texttt{nn.Module} checkpoints directly serializable.
+    \item \textbf{MPI Device Safety:} \texttt{mpi\_pytorch} stages tensors and gradients on contiguous CPU buffers before MPI collectives and copies updates back to target devices.
 \end{itemize}
 
-\subsection{TensorFlow 2.15: Eager Execution Migration}
-A total rewrite of the TensorFlow backend removed all legacy \texttt{tf.compat.v1} dependencies.
+\subsection{TensorFlow 2.20.0 / Keras 3: Serialization and Graph Training}
 \begin{itemize}
-    \item \textbf{Functional Models:} All algorithms now use \texttt{tf.keras.Model} subclassing for better modularity.
-    \item \textbf{Automatic Differentiation:} Replaced static graphs with \texttt{tf.GradientTape} orchestration.
+    \item \textbf{Keras 3 Models:} All \texttt{tf.keras.Model} subclasses are registered with \texttt{@tf.keras.utils.register\_keras\_serializable}, track trainable variables via \texttt{add\_weight}, implement \texttt{get\_config}/\texttt{from\_config}, expose \texttt{act(..., deterministic=...)}, and save in \texttt{.keras} format.
+    \item \textbf{TRPO Trust Region:} Line search and Fisher-vector products evaluate forward KL $D_{\mathrm{KL}}(\pi_{\theta_k} \,\|\, \pi_\theta)$ against a detached policy snapshot $\pi_{\theta_k}$, with global MPI reduction on both KL and loss checks.
+    \item \textbf{Fused Graph Steps:} Off-policy TF2 algorithms compile \texttt{tf.GradientTape}, optimizer updates, and Polyak averaging inside \texttt{@tf.function} steps.
 \end{itemize}
 
-\begin{lstlisting}[language=Python, caption=Modern TF2 Policy Update Pattern]
-with tf.GradientTape() as tape:
-    loss_pi, kl, ent = compute_loss_pi(obs, act, adv, logp_old)
-grads = tape.gradient(loss_pi, ac.pi.trainable_variables)
-pi_optimizer.apply_gradients(zip(grads, ac.pi.trainable_variables))
-\end{lstlisting}
-
-\section{Hardware Acceleration: Strict Dependency Alignment}
-A critical technical achievement was solving the \textbf{cuDNN Version Conflict} present in modern pip-based NVIDIA distributions when combining PyTorch and TensorFlow in the same environment.
-
-\subsection{Implementation Detail: The Golden Path}
-TensorFlow 2.15 strictly requires \texttt{libcudnn.so.8}. However, installing the latest PyTorch versions (e.g., 2.5+) automatically pulls down \texttt{cuDNN v9} dependencies, silently breaking TensorFlow's ability to detect the GPU.
-
-To resolve this natively without resorting to fragile runtime symlinks or \texttt{LD\_LIBRARY\_PATH} hacking, we established a strict dependency alignment:
-\begin{enumerate}
-    \item \textbf{Version Pinning:} PyTorch is pinned to \texttt{torch==2.1.2}.
-    \item \textbf{Native Resolution:} This specific PyTorch release explicitly depends on \texttt{nvidia-cudnn-cu12==8.9.2.26}.
-    \item \textbf{Framework Harmony:} This \texttt{cuDNN} package natively provides \texttt{libcudnn.so.8}, perfectly satisfying the requirements of both \texttt{torch==2.1.2} and \texttt{tensorflow==2.15.0} simultaneously.
-\end{enumerate}
-This ensures that the repository remains "plug-and-play" across diverse Linux environments, granting both backends full access to the GPU right out of the box.
-
-\section{Distributed Execution: MPI-GPU Synchronization}
-Modernized MPI support ensures correct coordination with CUDA devices:
-\begin{itemize}
-    \item \textbf{Weight Sync:} Synchronized model parameters across processes using rank-0 broadcasting.
-    \item \textbf{Gradient Aggregation:} Global gradient averaging via \texttt{mpi\_avg} before optimizer updates.
-    \item \textbf{Resource Isolation:} Configured \texttt{allow\_growth} to prevent MPI ranks from conflicting on VRAM allocation.
-\end{itemize}
-
-\section{Verification Results}
-The system passed a rigorous 100\% sweep of the core algorithm suite (VPG, PPO, DDPG, TD3, SAC, TRPO) with no initialization warnings and full hardware acceleration.
+\section{Dependency Alignment and Packaging}
+\texttt{pyproject.toml} pins \texttt{torch==2.10.0} and \texttt{tensorflow==2.20.0} so both backends share CUDA 12 and cuDNN 9 (\texttt{libcudnn.so.9}) cleanly across Python 3.10--3.13, using \texttt{find\_namespace\_packages} and optional extras (\texttt{box2d}, \texttt{atari}, \texttt{genai}, \texttt{docs}).
 
 \section{Citation}
 \begin{lstlisting}[language=TeX]

@@ -19,7 +19,7 @@ def mpi_fork(n, bind_to_core=False):
 
         bind_to_core (bool): Bind each MPI process to a core.
     """
-    if n<=1: 
+    if n <= 1:
         return
     if os.getenv("IN_MPI") is None:
         env = os.environ.copy()
@@ -55,7 +55,7 @@ def broadcast(x, root=0):
 
 def mpi_op(x, op):
     x, scalar = ([x], True) if np.isscalar(x) else (x, False)
-    x = np.asarray(x, dtype=np.float32)
+    x = np.ascontiguousarray(x, dtype=np.float32)
     buff = np.zeros_like(x, dtype=np.float32)
     allreduce(x, buff, op=op)
     return buff[0] if scalar else buff
@@ -66,7 +66,7 @@ def mpi_sum(x):
 def mpi_avg(x):
     """Average a scalar or vector over MPI processes."""
     return mpi_sum(x) / num_procs()
-    
+
 def mpi_statistics_scalar(x, with_min_and_max=False):
     """
     Get mean/std and optional min/max of scalar x across MPI processes.
@@ -78,15 +78,20 @@ def mpi_statistics_scalar(x, with_min_and_max=False):
         with_min_and_max (bool): If true, return min and max of x in 
             addition to mean and std.
     """
-    x = np.array(x, dtype=np.float32)
-    global_sum, global_n = mpi_sum([np.sum(x), len(x)])
+    x = np.asarray(x, dtype=np.float32)
+    global_sum, global_n = mpi_sum([float(np.sum(x)), float(len(x))])
+    if global_n == 0:
+        if with_min_and_max:
+            return np.nan, np.nan, np.nan, np.nan
+        return np.nan, np.nan
+
     mean = global_sum / global_n
 
-    global_sum_sq = mpi_sum(np.sum((x - mean)**2))
+    global_sum_sq = mpi_sum(float(np.sum((x - mean)**2)))
     std = np.sqrt(global_sum_sq / global_n)  # compute global std
 
     if with_min_and_max:
-        global_min = mpi_op(np.min(x) if len(x) > 0 else np.inf, op=MPI.MIN)
-        global_max = mpi_op(np.max(x) if len(x) > 0 else -np.inf, op=MPI.MAX)
+        global_min = mpi_op(float(np.min(x)) if len(x) > 0 else np.inf, op=MPI.MIN)
+        global_max = mpi_op(float(np.max(x)) if len(x) > 0 else -np.inf, op=MPI.MAX)
         return mean, std, global_min, global_max
     return mean, std

@@ -18,7 +18,7 @@ The following algorithms are implemented in the Spinning Up package:
 
 They are all implemented with `MLP`_ (non-recurrent) actor-critics, making them suitable for fully-observed, non-image-based RL environments, e.g. the `Gym Mujoco`_ environments.
 
-Spinning Up has three implementations for each algorithm: one that uses `PyTorch`_, one that uses `Tensorflow v1`_, and one that uses `Tensorflow v2`_ as the neural network library. (All are available for VPG, PPO, DDPG, TD3, SAC, and TRPO.)
+Spinning Up has two implementations for each algorithm: one that uses `PyTorch`_ and one that uses `Tensorflow v2`_ as the neural network library. (All are available for VPG, TRPO, PPO, DDPG, TD3, and SAC.)
 
 .. _`Gym Mujoco`: https://gymnasium.farama.org/environments/mujoco/
 .. _`Vanilla Policy Gradient`: ../algorithms/vpg.html
@@ -29,7 +29,6 @@ Spinning Up has three implementations for each algorithm: one that uses `PyTorch
 .. _`Soft Actor-Critic`: ../algorithms/sac.html
 .. _`MLP`: https://en.wikipedia.org/wiki/Multilayer_perceptron
 .. _`PyTorch`: https://pytorch.org/
-.. _`Tensorflow v1`: https://www.tensorflow.org/versions/r1.15/api_docs
 .. _`Tensorflow v2`: https://www.tensorflow.org/api_docs/python/tf
 
 
@@ -98,43 +97,6 @@ The algorithm function for a PyTorch implementation performs the following tasks
 
 
 
-The Algorithm Function: Tensorflow Version
-------------------------------------------
-
-The algorithm function for a Tensorflow implementation performs the following tasks in (roughly) this order:
-
-    1) Logger setup
-
-    2) Random seed setting
-    
-    3) Environment instantiation
-    
-    4) Making placeholders for the computation graph
-    
-    5) Building the actor-critic computation graph via the ``actor_critic`` function passed to the algorithm function as an argument
-    
-    6) Instantiating the experience buffer
-    
-    7) Building the computation graph for loss functions and diagnostics specific to the algorithm
-    
-    8) Making training ops
-    
-    9) Making the TF Session and initializing parameters
-    
-    10) Setting up model saving through the logger
-    
-    11) Defining functions needed for running the main loop of the algorithm (e.g. the core update function, get action function, and test agent function, depending on the algorithm)
-    
-    12) Running the main loop of the algorithm:
-    
-        a) Run the agent in the environment
-    
-        b) Periodically update the parameters of the agent according to the main equations of the algorithm
-    
-        c) Log key performance metrics and save agent
-
-
-
 The Algorithm Function: Tensorflow Version (v2)
 -----------------------------------------------
 
@@ -143,29 +105,29 @@ The algorithm function for a Tensorflow v2 implementation performs the following
     1) Logger setup
 
     2) Random seed setting
-    
+
     3) Environment instantiation
-    
+
     4) Constructing the actor-critic Keras model via the ``actor_critic`` function passed to the algorithm function as an argument
-    
+
     5) Syncing parameters across MPI processes
-    
+
     6) Instantiating the experience buffer
-    
+
     7) Setting up callable loss functions using ``@tf.function`` for performance
-    
+
     8) Making Keras optimizers (optionally wrapped for MPI)
-    
+
     9) Setting up model saving through the logger
-    
+
     10) Setting up an update function that uses ``tf.GradientTape`` for optimization
-    
+
     11) Running the main loop of the algorithm:
-    
+
         a) Run the agent in the environment
-    
+
         b) Periodically update the parameters of the agent according to the main equations of the algorithm
-    
+
         c) Log key performance metrics and save agent
 
 
@@ -175,12 +137,10 @@ The Core File
 
 The core files don't adhere as closely as the algorithms files to a template, but do have some approximate structure:
 
-    1) **Tensorflow only:** Functions related to making and managing placeholders
+    1) Helper functions (``mlp``, ``combined_shape``, ``discount_cumsum``)
 
-    2) Functions for building sections of computation graph relevant to the ``actor_critic`` method for a particular algorithm
+    2) Policy and value network model definitions compatible with ``actor_critic``
 
-    3) Any other useful functions
-
-    4) Implementations for an MLP actor-critic compatible with the algorithm, where both the policy and the value function(s) are represented by simple MLPs
+    3) Implementations for an MLP actor-critic compatible with the algorithm, where both the policy and the value function(s) are represented by simple MLPs
 
 

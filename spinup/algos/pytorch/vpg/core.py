@@ -36,7 +36,7 @@ def discount_cumsum(x, discount):
          x1, 
          x2]
 
-    output:
+    output: 
         [x0 + discount * x1 + discount^2 * x2,  
          x1 + discount * x2,
          x2]
@@ -53,9 +53,6 @@ class Actor(nn.Module):
         raise NotImplementedError
 
     def forward(self, obs, act=None):
-        # Produce action distributions for given observations, and 
-        # optionally compute the log likelihood of given actions under
-        # those distributions.
         pi = self._distribution(obs)
         logp_a = None
         if act is not None:
@@ -64,7 +61,7 @@ class Actor(nn.Module):
 
 
 class MLPCategoricalActor(Actor):
-    
+
     def __init__(self, obs_dim, act_dim, hidden_sizes, activation):
         super().__init__()
         self.logits_net = mlp([obs_dim] + list(hidden_sizes) + [act_dim], activation)
@@ -104,11 +101,9 @@ class MLPCritic(nn.Module):
         return torch.squeeze(self.v_net(obs), -1) # Critical to ensure v has right shape.
 
 
-
 class MLPActorCritic(nn.Module):
 
-
-    def __init__(self, observation_space, action_space, 
+    def __init__(self, observation_space, action_space,
                  hidden_sizes=(64,64), activation=nn.Tanh):
         super().__init__()
 
@@ -121,7 +116,7 @@ class MLPActorCritic(nn.Module):
             self.pi = MLPCategoricalActor(obs_dim, action_space.n, hidden_sizes, activation)
 
         # build value function
-        self.v  = MLPCritic(obs_dim, hidden_sizes, activation)
+        self.v = MLPCritic(obs_dim, hidden_sizes, activation)
 
     def step(self, obs):
         with torch.no_grad():
@@ -131,5 +126,13 @@ class MLPActorCritic(nn.Module):
             v = self.v(obs)
         return a.detach().cpu().numpy(), v.detach().cpu().numpy(), logp_a.detach().cpu().numpy()
 
-    def act(self, obs):
-        return self.step(obs)[0]
+    def act(self, obs, deterministic=False):
+        if not deterministic:
+            return self.step(obs)[0]
+        with torch.no_grad():
+            pi = self.pi._distribution(obs)
+            if isinstance(pi, Categorical):
+                a = torch.argmax(pi.logits, dim=-1)
+            else:
+                a = pi.mean
+        return a.detach().cpu().numpy()

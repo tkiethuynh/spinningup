@@ -253,7 +253,7 @@ Documentation: PyTorch Version
 Saved Model Contents: PyTorch Version
 -------------------------------------
 
-The PyTorch saved model can be loaded with ``ac = torch.load('path/to/model.pt')``, yielding an actor-critic object (``ac``) that has the properties described in the docstring for ``sac_pytorch``. 
+The PyTorch saved model can be loaded with ``ac = torch.load('path/to/model.pt', weights_only=False)``, yielding an actor-critic object (``ac``) that has the properties described in the docstring for ``sac_pytorch``. 
 
 You can get actions from this model with
 
@@ -270,29 +270,17 @@ Documentation: Tensorflow Version
 Saved Model Contents: Tensorflow Version
 ----------------------------------------
 
-The computation graph saved by the logger includes:
-
-========  ====================================================================
-Key       Value
-========  ====================================================================
-``x``     Tensorflow placeholder for state input.
-``a``     Tensorflow placeholder for action input.
-``mu``    Deterministically computes mean action from the agent, given states in ``x``. 
-``pi``    Samples an action from the agent, conditioned on states in ``x``.
-``q1``    Gives one action-value estimate for states in ``x`` and actions in ``a``.
-``q2``    Gives the other action-value estimate for states in ``x`` and actions in ``a``.
-``v``     Gives the value estimate for states in ``x``. 
-========  ====================================================================
+The Tensorflow 2 saved model is stored as a Keras 3 archive (``tf2_save/model.keras``) containing an ``MLPActorCritic`` model with ``pi``, ``q1``, and ``q2`` submodules and an ``act(obs, deterministic=False)`` method.
 
 This saved model can be accessed either by
 
 * running the trained policy with the `test_policy.py`_ tool,
-* or loading the whole saved graph into a program with `restore_tf_graph`_. 
+* or loading the saved Keras model into a program with `restore_tf2_model`_.
 
-Note: for SAC, the correct evaluation policy is given by ``mu`` and not by ``pi``. The policy ``pi`` may be thought of as the exploration policy, while ``mu`` is the exploitation policy.
+Note: for SAC, the correct evaluation policy is ``deterministic=True`` (using the mean action rather than stochastic sampling).
 
 .. _`test_policy.py`: ../user/saving_and_loading.html#loading-and-running-trained-policies
-.. _`restore_tf_graph`: ../utils/logger.html#spinup.utils.logx.restore_tf_graph
+.. _`restore_tf2_model`: ../utils/logger.html#spinup.utils.logx.restore_tf2_model
 
 
 References
