@@ -8,7 +8,7 @@ Extra Material: Tensorflow Policy Gradient Implementation Examples
 Implementing the Simplest Policy Gradient
 =========================================
 
-We give a short Tensorflow implementation of this simple version of the policy gradient algorithm in ``spinup/examples/tf1/pg_math/1_simple_pg.py``. (It can also be viewed `on github <https://github.com/openai/spinningup/blob/master/spinup/examples/tf1/pg_math/1_simple_pg.py>`_.) It is only 122 lines long, so we highly recommend reading through it in depth. While we won't go through the entirety of the code here, we'll highlight and explain a few important pieces.
+We give a short Tensorflow implementation of this simple version of the policy gradient algorithm in ``spinup/examples/tf1/pg_math/1_simple_pg.py``. (It can also be viewed `on github <https://github.com/openai/spinningup/blob/master/spinup/examples/tf1/pg_math/1_simple_pg.py>`__.) It is only 122 lines long, so we highly recommend reading through it in depth. While we won't go through the entirety of the code here, we'll highlight and explain a few important pieces.
 
 **1. Making the Policy Network.** 
 
@@ -148,7 +148,7 @@ The main loop of the algorithm just repeatedly calls ``train_one_epoch()``.
 Implementing Reward-to-Go Policy Gradient
 =========================================
 
-We give a short Tensorflow implementation of the reward-to-go policy gradient in ``spinup/examples/tf1/pg_math/2_rtg_pg.py``. (It can also be viewed `on github <https://github.com/openai/spinningup/blob/master/spinup/examples/tf1/pg_math/2_rtg_pg.py>`_.) 
+We give a short Tensorflow implementation of the reward-to-go policy gradient in ``spinup/examples/tf1/pg_math/2_rtg_pg.py``. (It can also be viewed `on github <https://github.com/openai/spinningup/blob/master/spinup/examples/tf1/pg_math/2_rtg_pg.py>`__.) 
 
 The only thing that has changed from ``1_simple_pg.py`` is that we now use different weights in the loss function. The code modification is very slight: we add a new function, and change two other lines. The new function is:
 

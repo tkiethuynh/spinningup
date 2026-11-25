@@ -100,12 +100,12 @@ This last expression is the simplest version of the computable expression we des
 Implementing the Simplest Policy Gradient
 =========================================
 
-We give a short PyTorch implementation of this simple version of the policy gradient algorithm in ``spinup/examples/pytorch/pg_math/1_simple_pg.py``. (It can also be viewed `on github <https://github.com/openai/spinningup/blob/master/spinup/examples/pytorch/pg_math/1_simple_pg.py>`_.) It is only 128 lines long, so we highly recommend reading through it in depth. While we won't go through the entirety of the code here, we'll highlight and explain a few important pieces.
+We give a short PyTorch implementation of this simple version of the policy gradient algorithm in ``spinup/examples/pytorch/pg_math/1_simple_pg.py``. (It can also be viewed `on github <https://github.com/openai/spinningup/blob/master/spinup/examples/pytorch/pg_math/1_simple_pg.py>`__.) It is only 128 lines long, so we highly recommend reading through it in depth. While we won't go through the entirety of the code here, we'll highlight and explain a few important pieces.
 
 
 .. admonition:: You Should Know
 
-    A TensorFlow 2 version of this script is also available in ``spinup/examples/tf2/pg_math/1_simple_pg.py``, and the original TensorFlow 1 walkthrough can be found `here <../spinningup/extra_tf_pg_implementation.html#implementing-the-simplest-policy-gradient>`_.
+    A TensorFlow 2 version of this script is also available in ``spinup/examples/tf2/pg_math/1_simple_pg.py``, and the original TensorFlow 1 walkthrough can be found `here <../spinningup/extra_tf_pg_implementation.html#implementing-the-simplest-policy-gradient>`__.
 
 **1. Making the Policy Network.** 
 
@@ -346,7 +346,7 @@ Implementing Reward-to-Go Policy Gradient
 =========================================
 
 
-We give a short PyTorch implementation of the reward-to-go policy gradient in ``spinup/examples/pytorch/pg_math/2_rtg_pg.py``. (It can also be viewed `on github <https://github.com/openai/spinningup/blob/master/spinup/examples/pytorch/pg_math/2_rtg_pg.py>`_.) 
+We give a short PyTorch implementation of the reward-to-go policy gradient in ``spinup/examples/pytorch/pg_math/2_rtg_pg.py``. (It can also be viewed `on github <https://github.com/openai/spinningup/blob/master/spinup/examples/pytorch/pg_math/2_rtg_pg.py>`__.) 
 
 The only thing that has changed from ``1_simple_pg.py`` is that we now use different weights in the loss function. The code modification is very slight: we add a new function, and change two other lines. The new function is:
 
@@ -383,7 +383,7 @@ to:
 
 .. admonition:: You Should Know
 
-    A TensorFlow 2 version of this script is also available in ``spinup/examples/tf2/pg_math/2_rtg_pg.py``, and the original TensorFlow 1 walkthrough can be found `here <../spinningup/extra_tf_pg_implementation.html#implementing-reward-to-go-policy-gradient>`_.
+    A TensorFlow 2 version of this script is also available in ``spinup/examples/tf2/pg_math/2_rtg_pg.py``, and the original TensorFlow 1 walkthrough can be found `here <../spinningup/extra_tf_pg_implementation.html#implementing-reward-to-go-policy-gradient>`__.
 
 
 Baselines in Policy Gradients

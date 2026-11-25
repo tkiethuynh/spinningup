@@ -80,7 +80,7 @@ Problem Set 2: Algorithm Failure Modes
 
     **Path to Exercise.** (Not applicable, there is no code for this one.)
 
-    **Path to Solution.** `Solution available here. <../spinningup/exercise2_1_soln.html>`_
+    **Path to Solution.** `Solution available here. <../spinningup/exercise2_1_soln.html>`__
 
     Many factors can impact the performance of policy gradient algorithms, but few more drastically than the quality of the learned value function used for advantage estimation. 
 
@@ -100,7 +100,7 @@ Problem Set 2: Algorithm Failure Modes
 
     * PyTorch version: ``spinup/exercises/pytorch/problem_set_2/exercise2_2.py``
 
-    **Path to Solution.** `Solution available here. <../spinningup/exercise2_2_soln.html>`_
+    **Path to Solution.** `Solution available here. <../spinningup/exercise2_2_soln.html>`__
 
     The hardest part of writing RL code is dealing with bugs, because failures are frequently silent. The code will appear to run correctly, but the agent's performance will degrade relative to a bug-free implementation---sometimes to the extent that it never learns anything.
 
