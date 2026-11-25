@@ -121,8 +121,6 @@ html_logo = 'images/spinning-up-logo2.png'
 html_theme_options = {
     'logo_only': True
 }
-#html_favicon = 'openai-favicon2_32x32.ico'
-html_favicon = 'openai_icon.ico'
 
 # -- Options for HTMLHelp output ------------------------------------------
 

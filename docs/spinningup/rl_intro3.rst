@@ -105,7 +105,7 @@ We give a short PyTorch implementation of this simple version of the policy grad
 
 .. admonition:: You Should Know
 
-    This section was previously written with a Tensorflow example. The old Tensorflow section can be found `here <../spinningup/extra_tf_pg_implementation.html#implementing-the-simplest-policy-gradient>`_. 
+    A TensorFlow 2 version of this script is also available in ``spinup/examples/tf2/pg_math/1_simple_pg.py``, and the original TensorFlow 1 walkthrough can be found `here <../spinningup/extra_tf_pg_implementation.html#implementing-the-simplest-policy-gradient>`_.
 
 **1. Making the Policy Network.** 
 
@@ -383,7 +383,7 @@ to:
 
 .. admonition:: You Should Know
 
-    This section was previously written with a Tensorflow example. The old Tensorflow section can be found `here <../spinningup/extra_tf_pg_implementation.html#implementing-reward-to-go-policy-gradient>`_. 
+    A TensorFlow 2 version of this script is also available in ``spinup/examples/tf2/pg_math/2_rtg_pg.py``, and the original TensorFlow 1 walkthrough can be found `here <../spinningup/extra_tf_pg_implementation.html#implementing-reward-to-go-policy-gradient>`_.
 
 
 Baselines in Policy Gradients

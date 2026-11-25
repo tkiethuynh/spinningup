@@ -4,6 +4,7 @@ import os
 
 import gymnasium as gym
 import numpy as np
+import pytest
 import torch
 
 from spinup import ppo_pytorch
@@ -57,3 +58,17 @@ def test_device_utils_cleanliness():
     setup_tf_gpu()
     assert get_torch_device().type in ("cpu", "cuda", "mps")
     assert get_tf_device() in ("/GPU:0", "/device:CPU:0")
+
+
+def test_box2d_lunarlander_smoke(tmp_path):
+    pytest.importorskip("Box2D")
+    out_dir = tmp_path / "lunarlander"
+    ppo_pytorch(
+        env_fn=partial(gym.make, "LunarLander-v3"),
+        ac_kwargs=dict(hidden_sizes=(32,)),
+        steps_per_epoch=80,
+        epochs=1,
+        max_ep_len=40,
+        logger_kwargs=dict(output_dir=str(out_dir), exp_name="lunarlander"),
+    )
+    assert (out_dir / "progress.txt").exists()
