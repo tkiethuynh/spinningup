@@ -30,7 +30,7 @@ jobs:
       - name: Install package and test dependencies
         run: |
           python -m pip install --upgrade pip setuptools wheel
-          pip install -e ".[box2d]"
+          pip install -e ".[pytorch,tf2,box2d]"
 
       - name: Run pytest suite
         run: |
@@ -46,4 +46,4 @@ jobs:
           python -m pip wheel --no-deps -w /tmp/dist .
           python -m pip uninstall -y spinup
           python -m pip install --no-deps /tmp/dist/spinup-*.whl
-          cd /tmp && python -c "import spinup; assert 'site-packages/spinup/' in spinup.__file__.replace('\\\\', '/'), spinup.__file__; from spinup import vpg_pytorch, trpo_pytorch, ppo_pytorch, ddpg_pytorch, td3_pytorch, sac_pytorch, vpg_tf2, trpo_tf2, ppo_tf2, ddpg_tf2, td3_tf2, sac_tf2; import spinup.examples.pytorch.pg_math; import spinup.exercises.pytorch.problem_set_1; print(spinup.__version__, spinup.__file__)"
+          cd /tmp && python -c "import sys, spinup; assert 'site-packages/spinup/' in spinup.__file__.replace('\\\\', '/'), spinup.__file__; assert 'torch' not in sys.modules and 'tensorflow' not in sys.modules; from spinup import vpg_pytorch, trpo_pytorch, ppo_pytorch, ddpg_pytorch, td3_pytorch, sac_pytorch, vpg_tf2, trpo_tf2, ppo_tf2, ddpg_tf2, td3_tf2, sac_tf2; import spinup.examples.pytorch.pg_math; import spinup.examples.tf2.pg_math; import spinup.exercises.pytorch.problem_set_1; print(spinup.__version__, spinup.__file__)"

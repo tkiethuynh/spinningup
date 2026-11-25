@@ -15,12 +15,6 @@ import shutil
 import time
 import warnings
 
-try:
-    import tensorflow as tf
-except ImportError:
-    tf = None
-import torch
-
 from spinup.utils.mpi_tools import proc_id, mpi_statistics_scalar
 from spinup.utils.serialization_utils import convert_json
 
@@ -63,11 +57,20 @@ def restore_tf2_model(fpath):
     Returns:
         The loaded Keras model.
     """
-    if tf is None:
-        raise ImportError("TensorFlow is not installed or could not be loaded.")
+    from spinup.utils.device_utils import setup_tf_gpu
+
+    setup_tf_gpu()
+    try:
+        import tensorflow as tf
+    except ImportError as exc:
+        raise ImportError(
+            "TensorFlow is required to load TF2 models. Install with: pip install -e '.[tf2]'"
+        ) from exc
     if not osp.exists(fpath) and osp.exists(fpath + '.keras'):
         fpath = fpath + '.keras'
-    import spinup  # noqa: F401 - ensure custom Keras classes are registered
+    # Ensure custom @register_keras_serializable MLPActorCritic classes are registered
+    for algo in ("vpg", "trpo", "ppo", "ddpg", "td3", "sac"):
+        __import__(f"spinup.algos.tf2.{algo}.core")
     return tf.keras.models.load_model(fpath, compile=False)
 
 
@@ -199,6 +202,8 @@ class Logger:
         Saves the PyTorch model (or models).
         """
         if proc_id() == 0:
+            import torch
+
             assert hasattr(self, 'pytorch_saver_elements'), \
                 "First have to setup saving with self.setup_pytorch_saver"
             fpath = osp.join(self.output_dir, 'pyt_save')

@@ -19,6 +19,11 @@ def test_pg_math_examples():
     mod1.train(env_name="CartPole-v1", epochs=2, batch_size=200)
     mod2.train(env_name="CartPole-v1", epochs=2, batch_size=200)
 
+    tf_mod1 = importlib.import_module("spinup.examples.tf2.pg_math.1_simple_pg")
+    tf_mod2 = importlib.import_module("spinup.examples.tf2.pg_math.2_rtg_pg")
+    tf_mod1.train(env_name="CartPole-v1", epochs=2, batch_size=200)
+    tf_mod2.train(env_name="CartPole-v1", epochs=2, batch_size=200)
+
 
 def test_exercise_solutions_and_bugged(tmp_path):
     x = torch.randn(16, 4)

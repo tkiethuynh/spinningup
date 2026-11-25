@@ -141,6 +141,8 @@ The core files don't adhere as closely as the algorithms files to a template, bu
 
     2) Policy and value network model definitions compatible with ``actor_critic``
 
-    3) Implementations for an MLP actor-critic compatible with the algorithm, where both the policy and the value function(s) are represented by simple MLPs
+    3) Implementations for an MLP actor-critic compatible with the algorithm, where both the policy and the value function(s) are represented by simple MLPs (in TensorFlow 2, inheriting ``SerializableActorCritic`` from ``_keras_utils.py`` for ``.keras`` persistence)
+
+All algorithm entrypoints default to ``device='cpu'`` because single-environment Gymnasium rollouts with small MLPs typically run faster on CPU without per-step GPU transfer overhead; pass ``device='auto'`` or ``device='cuda'``/``device='gpu'`` when scaling network size or running GPU benchmarks.
 
 

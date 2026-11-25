@@ -41,10 +41,10 @@
 \maketitle
 
 \section{Core Architectural Evolution}
-This report documents the modernization of OpenAI's Spinning Up repository to Python 3.10--3.13, Gymnasium ($\ge 1.0.0$), PyTorch 2.10.0, and TensorFlow 2.20.0 / Keras 3.
+This report documents the modernization of OpenAI's Spinning Up repository to Python 3.10--3.13, Gymnasium ($\ge 1.0.0$), PyTorch 2.10.0, and TensorFlow 2.20.0 / Keras 3 while preserving textbook readability and full educational docstrings.
 
 \subsection{Gymnasium Migration and Bootstrap Semantics}
-All algorithm implementations, examples, and exercises use the Gymnasium 5-tuple step API (\texttt{obs, rew, terminated, truncated, info}) and 2-tuple reset API (\texttt{obs, info}). True terminations (\texttt{terminated}) are strictly separated from time-limit truncations (\texttt{truncated} or \texttt{ep\_len == max\_ep\_len}):
+All 12 algorithm implementations, examples, and exercises use the Gymnasium 5-tuple step API (\texttt{obs, rew, terminated, truncated, info}) and 2-tuple reset API (\texttt{obs, info}). True terminations (\texttt{terminated}) are strictly separated from time-limit truncations (\texttt{truncated} or \texttt{ep\_len == max\_ep\_len}):
 \begin{table}[h]
 \centering
 \caption{Gymnasium API and Environment Standardization}
@@ -60,22 +60,22 @@ MuJoCo Tasks & Open-source MuJoCo \texttt{v5} suite & \texttt{HalfCheetah-v5}, \
 
 \section{Deep Learning Backends}
 
-\subsection{PyTorch 2.10.0: TRPO Parity, MPI Staging, and \texttt{torch.compile}}
+\subsection{PyTorch 2.10.0: TRPO Parity, Clean Objectives, and Device Selection}
 \begin{itemize}
     \item \textbf{Complete PyTorch TRPO:} Added \texttt{spinup/algos/pytorch/trpo/} with exact Fisher-vector products via double \texttt{torch.autograd.grad} on forward KL divergence, conjugate gradients, and MPI-synchronized backtracking line search.
-    \item \textbf{Loss-Graph Compilation:} Pure-tensor loss kernels are compiled with \texttt{torch.compile} via \texttt{--compile}, keeping outer \texttt{nn.Module} checkpoints directly serializable.
+    \item \textbf{Textbook Loss Kernels \& Device Control:} Algorithms keep direct objective functions (\texttt{pi, logp = ac.pi(obs, act)}) and default to \texttt{device='cpu'} (fastest for single-env shallow MLPs) with optional \texttt{'auto'}, \texttt{'cuda'}, or \texttt{'mps'} selection.
     \item \textbf{MPI Device Safety:} \texttt{mpi\_pytorch} stages tensors and gradients on contiguous CPU buffers before MPI collectives and copies updates back to target devices.
 \end{itemize}
 
-\subsection{TensorFlow 2.20.0 / Keras 3: Serialization and Graph Training}
+\subsection{TensorFlow 2.20.0 / Keras 3: Slim Serialization and Graph Training}
 \begin{itemize}
-    \item \textbf{Keras 3 Models:} All \texttt{tf.keras.Model} subclasses are registered with \texttt{@tf.keras.utils.register\_keras\_serializable}, track trainable variables via \texttt{add\_weight}, implement \texttt{get\_config}/\texttt{from\_config}, expose \texttt{act(..., deterministic=...)}, and save in \texttt{.keras} format.
+    \item \textbf{Shared Serialization (\texttt{\_keras\_utils.py}):} Outer \texttt{MLPActorCritic} classes inherit \texttt{SerializableActorCritic} and register via \texttt{@tf.keras.utils.register\_keras\_serializable} for clean \texttt{.keras} persistence while keeping inner actor/critic submodules minimal.
     \item \textbf{TRPO Trust Region:} Line search and Fisher-vector products evaluate forward KL $D_{\mathrm{KL}}(\pi_{\theta_k} \,\|\, \pi_\theta)$ against a detached policy snapshot $\pi_{\theta_k}$, with global MPI reduction on both KL and loss checks.
-    \item \textbf{Fused Graph Steps:} Off-policy TF2 algorithms compile \texttt{tf.GradientTape}, optimizer updates, and Polyak averaging inside \texttt{@tf.function} steps.
+    \item \textbf{Fused Graph Steps \& \texttt{pg\_math} Parity:} Off-policy TF2 algorithms compile \texttt{tf.GradientTape}, optimizer updates, and Polyak averaging inside \texttt{@tf.function} steps, alongside symmetric \texttt{spinup/examples/tf2/pg\_math/} tutorials.
 \end{itemize}
 
-\section{Dependency Alignment and Packaging}
-\texttt{pyproject.toml} pins \texttt{torch==2.10.0} and \texttt{tensorflow==2.20.0} so both backends share CUDA 12 and cuDNN 9 (\texttt{libcudnn.so.9}) cleanly across Python 3.10--3.13, using \texttt{find\_namespace\_packages} and optional extras (\texttt{box2d}, \texttt{atari}, \texttt{genai}, \texttt{docs}).
+\section{Lazy Packaging and Dependency Alignment}
+\texttt{spinup/\_\_init\_\_.py} exposes algorithm entrypoints lazily via PEP 562 \texttt{\_\_getattr\_\_}. \texttt{pyproject.toml} provides optional extras (\texttt{pytorch}, \texttt{tf2}, \texttt{box2d}, \texttt{atari}, \texttt{docs}, \texttt{all}) and pins \texttt{torch==2.10.0} and \texttt{tensorflow==2.20.0} so both backends share CUDA 12 and cuDNN 9 (\texttt{libcudnn.so.9}) cleanly across Python 3.10--3.13.
 
 \section{Citation}
 \begin{lstlisting}[language=TeX]

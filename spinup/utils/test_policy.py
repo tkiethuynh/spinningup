@@ -3,8 +3,6 @@ import os.path as osp
 import time
 import joblib
 import numpy as np
-import tensorflow as tf
-import torch
 
 from spinup import EpochLogger
 from spinup.utils.device_utils import get_torch_device
@@ -61,13 +59,18 @@ def load_policy_and_env(fpath, itr='last', deterministic=False):
 
 def load_tf2_policy(fpath, itr, deterministic=False):
     """Load a TF2 policy saved with Spinning Up Logger."""
+    from spinup.utils.device_utils import setup_tf_gpu
+
+    setup_tf_gpu()
+    import tensorflow as tf
+    from spinup.utils.logx import restore_tf2_model
+
     fname = osp.join(fpath, 'tf2_save', 'model' + itr + '.keras')
     if not osp.exists(fname) and osp.exists(osp.join(fpath, 'tf2_save', 'model' + itr)):
         fname = osp.join(fpath, 'tf2_save', 'model' + itr)
     print('\n\nLoading from %s.\n\n' % fname)
 
-    import spinup  # noqa: F401 - ensure custom Keras classes are registered
-    model = tf.keras.models.load_model(fname, compile=False)
+    model = restore_tf2_model(fname)
 
     def get_action(x):
         obs = tf.convert_to_tensor(np.asarray(x, dtype=np.float32).reshape(1, -1))
@@ -86,10 +89,12 @@ def load_tf2_policy(fpath, itr, deterministic=False):
 
 def load_pytorch_policy(fpath, itr, deterministic=False):
     """Load a PyTorch policy saved with Spinning Up Logger."""
+    import torch
+
     fname = osp.join(fpath, 'pyt_save', 'model' + itr + '.pt')
     print('\n\nLoading from %s.\n\n' % fname)
 
-    device = get_torch_device()
+    device = get_torch_device("cpu")
     model = torch.load(fname, map_location=device, weights_only=False)
     model.eval()
 

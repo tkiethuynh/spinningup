@@ -8,8 +8,6 @@ import json
 import os, subprocess, sys
 import os.path as osp
 import string
-import tensorflow as tf
-import torch
 from copy import deepcopy
 from textwrap import dedent
 
@@ -54,7 +52,7 @@ def parse_and_execute_grid_search(cmd, args):
         print('\n\nUsing default backend (%s) for %s.\n'%(backend, cmd))
         cmd = cmd + '_' + backend
 
-    algo = eval('spinup.'+cmd)
+    algo = getattr(spinup, cmd)
 
     # Before all else, check to see if any of the flags is 'help'.
     valid_help = ['--help', '-h', 'help']
@@ -67,8 +65,18 @@ def parse_and_execute_grid_search(cmd, args):
         # Process an arg by eval-ing it, so users can specify more
         # than just strings at the command line (eg allows for
         # users to give functions as args).
+        ns = {}
+        if isinstance(arg, str):
+            if 'torch' in arg:
+                import torch
+                ns['torch'] = torch
+            if 'tf' in arg:
+                from spinup.utils.device_utils import setup_tf_gpu
+                setup_tf_gpu()
+                import tensorflow as tf
+                ns['tf'] = tf
         try:
-            return eval(arg)
+            return eval(arg, ns)
         except Exception:
             return arg
 

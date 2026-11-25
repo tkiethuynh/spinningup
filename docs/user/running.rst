@@ -184,6 +184,10 @@ These flags are not hyperparameters of any algorithm, but change the experimenta
 
     *bool*. Include date and time in the name for the save directory of the experiment.
 
+.. option:: --device
+
+    *string*. Compute device passed to the algorithm (``'cpu'`` by default, or ``'auto'`` / ``'cuda'`` / ``'mps'`` for PyTorch; ``'cpu'``, ``'auto'``, ``'gpu'``, or ``'/GPU:0'`` for TensorFlow 2). Single-environment MLP rollouts are typically fastest on ``'cpu'``.
+
 
 Where Results are Saved
 -----------------------

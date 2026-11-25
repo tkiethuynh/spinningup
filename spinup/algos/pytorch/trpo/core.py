@@ -30,15 +30,28 @@ def count_vars(module):
 def discount_cumsum(x, discount):
     """
     magic from rllab for computing discounted cumulative sums of vectors.
+
+    input:
+        vector x,
+        [x0,
+         x1,
+         x2]
+
+    output:
+        [x0 + discount * x1 + discount^2 * x2,
+         x1 + discount * x2,
+         x2]
     """
     return scipy.signal.lfilter([1], [1, float(-discount)], x[::-1], axis=0)[::-1]
 
 
 def flat_params(params):
+    """Flatten a list of parameter tensors into a single 1D vector."""
     return torch.cat([p.detach().reshape(-1) for p in params])
 
 
 def set_flat_params(params, flat_theta):
+    """Assign a 1D parameter vector back into a sequence of parameter tensors."""
     with torch.no_grad():
         idx = 0
         for p in params:
@@ -48,6 +61,7 @@ def set_flat_params(params, flat_theta):
 
 
 def flat_grad(loss, params, retain_graph=None, create_graph=False):
+    """Compute gradients of `loss` wrt `params` and flatten into a 1D tensor."""
     grads = torch.autograd.grad(
         loss, list(params), retain_graph=retain_graph, create_graph=create_graph
     )
@@ -55,9 +69,10 @@ def flat_grad(loss, params, retain_graph=None, create_graph=False):
 
 
 def kl_divergence(pi_old, pi_new):
+    """Compute mean KL(pi_old || pi_new) across a batch of distributions."""
     kl = torch_kl_divergence(pi_old, pi_new)
     if isinstance(pi_new, Normal):
-        kl = kl.sum(dim=-1)
+        kl = kl.sum(dim=-1)   # sum across independent action dimensions
     return kl.mean()
 
 
@@ -105,7 +120,7 @@ class MLPGaussianActor(Actor):
         return Normal(mu, std)
 
     def _log_prob_from_distribution(self, pi, act):
-        return pi.log_prob(act).sum(axis=-1)
+        return pi.log_prob(act).sum(axis=-1)    # Last axis sum needed for Torch Normal distribution
 
 
 class MLPCritic(nn.Module):
@@ -115,7 +130,7 @@ class MLPCritic(nn.Module):
         self.v_net = mlp([obs_dim] + list(hidden_sizes) + [1], activation)
 
     def forward(self, obs):
-        return torch.squeeze(self.v_net(obs), -1)
+        return torch.squeeze(self.v_net(obs), -1)  # Critical to ensure v has right shape.
 
 
 class MLPActorCritic(nn.Module):
@@ -126,11 +141,13 @@ class MLPActorCritic(nn.Module):
 
         obs_dim = observation_space.shape[0]
 
+        # policy builder depends on action space
         if isinstance(action_space, Box):
             self.pi = MLPGaussianActor(obs_dim, action_space.shape[0], hidden_sizes, activation)
         elif isinstance(action_space, Discrete):
             self.pi = MLPCategoricalActor(obs_dim, action_space.n, hidden_sizes, activation)
 
+        # build value function
         self.v = MLPCritic(obs_dim, hidden_sizes, activation)
 
     def step(self, obs):

@@ -1,11 +1,9 @@
-import math
 import time
 from typing import Callable, Dict, Any
 
 import gymnasium as gym
 import numpy as np
 import torch
-import torch.nn.functional as F
 from torch.optim import Adam
 
 import spinup.algos.pytorch.ppo.core as core
@@ -107,9 +105,9 @@ def ppo(env_fn: Callable[[], gym.Env],
         target_kl: float = 0.01,
         logger_kwargs: Dict[str, Any] = dict(),
         save_freq: int = 10,
-        compile: bool = False):
+        device: str = 'cpu'):
     """
-    Proximal Policy Optimization (by clipping), 
+    Proximal Policy Optimization (by clipping),
 
     with early stopping based on approximate KL
 
@@ -117,16 +115,59 @@ def ppo(env_fn: Callable[[], gym.Env],
         env_fn : A function which creates a copy of the environment.
             The environment must satisfy the Gymnasium API.
 
-        actor_critic: The constructor method for a PyTorch Module with a 
-            ``step`` method, an ``act`` method, a ``pi`` module, and a ``v`` 
-            module.
+        actor_critic: The constructor method for a PyTorch Module with a
+            ``step`` method, an ``act`` method, a ``pi`` module, and a ``v``
+            module. The ``step`` method should accept a batch of observations
+            and return:
 
-        ac_kwargs (dict): Any kwargs appropriate for the ActorCritic object 
+            ===========  ================  ======================================
+            Symbol       Shape             Description
+            ===========  ================  ======================================
+            ``a``        (batch, act_dim)  | Numpy array of actions for each
+                                           | observation.
+            ``v``        (batch,)          | Numpy array of value estimates
+                                           | for the provided observations.
+            ``logp_a``   (batch,)          | Numpy array of log probs for the
+                                           | actions in ``a``.
+            ===========  ================  ======================================
+
+            The ``act`` method behaves the same as ``step`` but only returns
+            ``a`` (optionally supporting ``deterministic=True``).
+
+            The ``pi`` module's forward call should accept a batch of
+            observations and optionally a batch of actions, and return:
+
+            ===========  ================  ======================================
+            Symbol       Shape             Description
+            ===========  ================  ======================================
+            ``pi``       N/A               | Torch Distribution object, containing
+                                           | a batch of distributions describing
+                                           | the policy for the provided observations.
+            ``logp_a``   (batch,)          | Optional (only returned if batch of
+                                           | actions is given). Tensor containing
+                                           | the log probability, according to
+                                           | the policy, of the provided actions.
+                                           | If actions not given, will contain
+                                           | ``None``.
+            ===========  ================  ======================================
+
+            The ``v`` module's forward call should accept a batch of observations
+            and return:
+
+            ===========  ================  ======================================
+            Symbol       Shape             Description
+            ===========  ================  ======================================
+            ``v``        (batch,)          | Tensor containing the value estimates
+                                           | for the provided observations. (Critical:
+                                           | make sure to flatten this!)
+            ===========  ================  ======================================
+
+        ac_kwargs (dict): Any kwargs appropriate for the ActorCritic object
             you provided to PPO.
 
         seed (int): Seed for random number generators.
 
-        steps_per_epoch (int): Number of steps of interaction (state-action pairs) 
+        steps_per_epoch (int): Number of steps of interaction (state-action pairs)
             for the agent and the environment in each epoch.
 
         epochs (int): Number of epochs of interaction (equivalent to
@@ -135,15 +176,18 @@ def ppo(env_fn: Callable[[], gym.Env],
         gamma (float): Discount factor. (Always between 0 and 1.)
 
         clip_ratio (float): Hyperparameter for clipping in the policy objective.
+            Roughly: how far can the new policy go from the old policy while
+            still profiting (ratio-clipping can still help prevent new policies
+            from going far from the old policy). Scaled by 0.2 in PPO-Clip.
 
         pi_lr (float): Learning rate for policy optimizer.
 
         vf_lr (float): Learning rate for value function optimizer.
 
-        train_pi_iters (int): Maximum number of gradient descent steps to take 
+        train_pi_iters (int): Maximum number of gradient descent steps to take
             on policy loss per epoch.
 
-        train_v_iters (int): Number of gradient descent steps to take on 
+        train_v_iters (int): Number of gradient descent steps to take on
             value function per epoch.
 
         lam (float): Lambda for GAE-Lambda. (Always between 0 and 1,
@@ -152,14 +196,18 @@ def ppo(env_fn: Callable[[], gym.Env],
         max_ep_len (int): Maximum length of trajectory / episode / rollout.
 
         target_kl (float): Roughly what KL divergence we think is appropriate
-            between new and old policies after an update.
+            between new and old policies after an update. This will get used
+            for early stopping. (Usually small, 0.01 or 0.05.)
 
         logger_kwargs (dict): Keyword args for EpochLogger.
 
         save_freq (int): How often (in terms of gap between epochs) to save
             the current policy and value function.
 
-        compile (bool): Whether to use ``torch.compile`` on the loss graphs.
+        device (str): Compute device (`'cpu'`, `'cuda'`, `'mps'`, or `'auto'`).
+            Defaults to `'cpu'`, which is usually fastest for single-environment
+            rollouts with shallow MLPs; use `'auto'` or `'cuda'` for larger
+            networks or GPU setups.
 
     """
 
@@ -180,12 +228,12 @@ def ppo(env_fn: Callable[[], gym.Env],
     obs_dim = env.observation_space.shape
     act_dim = env.action_space.shape
 
-    # Device selection
-    device = get_torch_device()
-    logger.log(f'Using device: {device}')
+    # Select compute device
+    torch_device = get_torch_device(device)
+    logger.log(f'Using device: {torch_device}')
 
     # Create actor-critic module
-    ac = actor_critic(env.observation_space, env.action_space, **ac_kwargs).to(device)
+    ac = actor_critic(env.observation_space, env.action_space, **ac_kwargs).to(torch_device)
 
     # Sync params across processes
     sync_params(ac)
@@ -198,53 +246,29 @@ def ppo(env_fn: Callable[[], gym.Env],
     local_steps_per_epoch = int(steps_per_epoch / num_procs())
     buf = PPOBuffer(obs_dim, act_dim, local_steps_per_epoch, gamma, lam)
 
-    # Pure-tensor loss kernels (graph-friendly for torch.compile)
-    def _loss_pi_tensors(obs, act, adv, logp_old):
-        if isinstance(ac.pi, core.MLPCategoricalActor):
-            logits = ac.pi.logits_net(obs)
-            log_probs = F.log_softmax(logits, dim=-1)
-            logp = torch.gather(log_probs, -1, act.long().unsqueeze(-1)).squeeze(-1)
-            probs = torch.exp(log_probs)
-            ent = -(probs * log_probs).sum(dim=-1).mean()
-        elif isinstance(ac.pi, core.MLPGaussianActor):
-            mu = ac.pi.mu_net(obs)
-            std = torch.exp(ac.pi.log_std)
-            logp = (-0.5 * (((act - mu) / std) ** 2 + 2.0 * ac.pi.log_std + math.log(2.0 * math.pi))).sum(dim=-1)
-            ent = (0.5 + 0.5 * math.log(2.0 * math.pi) + ac.pi.log_std).mean()
-        else:
-            pi, logp = ac.pi(obs, act)
-            ent = pi.entropy().mean()
+    # Set up function for computing PPO policy loss
+    def compute_loss_pi(data):
+        obs, act, adv, logp_old = data['obs'], data['act'], data['adv'], data['logp']
 
+        # Policy loss
+        pi, logp = ac.pi(obs, act)
         ratio = torch.exp(logp - logp_old)
         clip_adv = torch.clamp(ratio, 1 - clip_ratio, 1 + clip_ratio) * adv
         loss_pi = -(torch.min(ratio * adv, clip_adv)).mean()
 
-        approx_kl = (logp_old - logp).mean()
+        # Useful extra info
+        approx_kl = (logp_old - logp).mean().item()
+        ent = pi.entropy().mean().item()
         clipped = ratio.gt(1 + clip_ratio) | ratio.lt(1 - clip_ratio)
-        clipfrac = clipped.to(torch.float32).mean()
-        return loss_pi, approx_kl, ent, clipfrac
+        clipfrac = clipped.to(torch.float32).mean().item()
+        pi_info = dict(kl=approx_kl, ent=ent, cf=clipfrac)
 
-    def _loss_v_tensors(obs, ret):
-        return ((ac.v(obs) - ret) ** 2).mean()
-
-    loss_pi_fn = _loss_pi_tensors
-    loss_v_fn = _loss_v_tensors
-    if compile and hasattr(torch, 'compile'):
-        logger.log('Compiling loss computation graphs...')
-        loss_pi_fn = torch.compile(_loss_pi_tensors)
-        loss_v_fn = torch.compile(_loss_v_tensors)
-
-    # Set up function for computing PPO policy loss
-    def compute_loss_pi(data):
-        loss_pi, approx_kl, ent, clipfrac = loss_pi_fn(
-            data['obs'], data['act'], data['adv'], data['logp']
-        )
-        pi_info = dict(kl=approx_kl.item(), ent=ent.item(), cf=clipfrac.item())
         return loss_pi, pi_info
 
     # Set up function for computing value loss
     def compute_loss_v(data):
-        return loss_v_fn(data['obs'], data['ret'])
+        obs, ret = data['obs'], data['ret']
+        return ((ac.v(obs) - ret) ** 2).mean()
 
     # Set up optimizers for policy and value function
     pi_optimizer = Adam(ac.pi.parameters(), lr=pi_lr)
@@ -254,7 +278,7 @@ def ppo(env_fn: Callable[[], gym.Env],
     logger.setup_pytorch_saver(ac)
 
     def update():
-        data = buf.get(device)
+        data = buf.get(torch_device)
 
         pi_l_old, pi_info_old = compute_loss_pi(data)
         pi_l_old = pi_l_old.item()
@@ -297,7 +321,7 @@ def ppo(env_fn: Callable[[], gym.Env],
     # Main loop: collect experience in env and update/log each epoch
     for epoch in range(epochs):
         for t in range(local_steps_per_epoch):
-            a, v, logp = ac.step(torch.as_tensor(o, dtype=torch.float32, device=device))
+            a, v, logp = ac.step(torch.as_tensor(o, dtype=torch.float32, device=torch_device))
 
             next_o, r, terminated, truncated, _ = env.step(a)
             ep_ret += r
@@ -319,7 +343,7 @@ def ppo(env_fn: Callable[[], gym.Env],
                 if terminated:
                     v = 0.0
                 else:
-                    _, v, _ = ac.step(torch.as_tensor(o, dtype=torch.float32, device=device))
+                    _, v, _ = ac.step(torch.as_tensor(o, dtype=torch.float32, device=torch_device))
                 buf.finish_path(v)
                 if terminal:
                     # only save EpRet / EpLen if trajectory finished
@@ -364,7 +388,7 @@ if __name__ == '__main__':
     parser.add_argument('--steps', type=int, default=4000)
     parser.add_argument('--epochs', type=int, default=50)
     parser.add_argument('--exp_name', type=str, default='ppo')
-    parser.add_argument('--compile', action='store_true')
+    parser.add_argument('--device', type=str, default='cpu')
     args = parser.parse_args()
 
     mpi_fork(args.cpu)  # run parallel code with mpi
@@ -375,4 +399,4 @@ if __name__ == '__main__':
     ppo(lambda: gym.make(args.env), actor_critic=core.MLPActorCritic,
         ac_kwargs=dict(hidden_sizes=[args.hid] * args.l), gamma=args.gamma,
         seed=args.seed, steps_per_epoch=args.steps, epochs=args.epochs,
-        logger_kwargs=logger_kwargs, compile=args.compile)
+        logger_kwargs=logger_kwargs, device=args.device)

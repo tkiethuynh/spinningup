@@ -1,16 +1,24 @@
 from functools import partial
+import subprocess
+import sys
+
 import gymnasium as gym
 import pandas as pd
 import pytest
-import torch
 
 from spinup import (
     ddpg_pytorch,
+    ddpg_tf2,
     ppo_pytorch,
+    ppo_tf2,
     sac_pytorch,
+    sac_tf2,
     td3_pytorch,
+    td3_tf2,
     trpo_pytorch,
+    trpo_tf2,
     vpg_pytorch,
+    vpg_tf2,
 )
 import spinup.algos.pytorch.ppo.ppo as ppo_mod
 import spinup.algos.pytorch.sac.sac as sac_mod
@@ -68,39 +76,52 @@ def test_off_policy_pytorch_algos(tmp_path, name, algo):
     assert df["TotalEnvInteracts"].iloc[-1] == 240
 
 
-def test_pytorch_compile_triggers_dynamo(tmp_path):
-    torch._dynamo.reset()
-    torch._dynamo.utils.counters.clear()
+def test_lazy_backend_imports_and_docstrings():
+    checks = [
+        "import sys, spinup; assert 'torch' not in sys.modules and 'tensorflow' not in sys.modules",
+        "import sys; from spinup import ppo_pytorch; assert 'torch' in sys.modules and 'tensorflow' not in sys.modules",
+        "import sys; from spinup import ppo_tf2; assert 'tensorflow' in sys.modules and 'torch' not in sys.modules",
+    ]
+    for script in checks:
+        proc = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, check=False)
+        assert proc.returncode == 0, f"Script failed: {script}\nSTDERR:\n{proc.stderr}"
 
-    ppo_dir = tmp_path / "ppo_compile"
-    ppo_pytorch(
-        env_fn=partial(gym.make, "CartPole-v1"),
-        ac_kwargs=dict(hidden_sizes=(32,)),
-        steps_per_epoch=100,
-        epochs=2,
-        compile=True,
-        logger_kwargs=dict(output_dir=str(ppo_dir), exp_name="ppo_compile"),
-    )
-    assert torch._dynamo.utils.counters["frames"]["ok"] > 0
+    all_algos = [
+        vpg_pytorch, trpo_pytorch, ppo_pytorch, ddpg_pytorch, td3_pytorch, sac_pytorch,
+        vpg_tf2, trpo_tf2, ppo_tf2, ddpg_tf2, td3_tf2, sac_tf2,
+    ]
+    for fn in all_algos:
+        assert fn.__doc__ is not None
+        assert len(fn.__doc__) > 400
+        assert "Args:" in fn.__doc__
+        assert "device" in fn.__doc__
 
-    torch._dynamo.reset()
-    torch._dynamo.utils.counters.clear()
 
-    sac_dir = tmp_path / "sac_compile"
-    sac_pytorch(
-        env_fn=partial(gym.make, "Pendulum-v1"),
-        ac_kwargs=dict(hidden_sizes=(32, 32)),
-        steps_per_epoch=80,
-        epochs=2,
-        start_steps=30,
-        update_after=30,
-        update_every=20,
-        batch_size=16,
-        num_test_episodes=1,
-        compile=True,
-        logger_kwargs=dict(output_dir=str(sac_dir), exp_name="sac_compile"),
-    )
-    assert torch._dynamo.utils.counters["frames"]["ok"] > 0
+def test_device_selection_pytorch_and_tf2(tmp_path):
+    for dev in ("cpu", "auto"):
+        pyt_dir = tmp_path / f"ppo_pyt_{dev}"
+        ppo_pytorch(
+            env_fn=partial(gym.make, "CartPole-v1"),
+            ac_kwargs=dict(hidden_sizes=(16,)),
+            steps_per_epoch=60,
+            epochs=1,
+            max_ep_len=30,
+            device=dev,
+            logger_kwargs=dict(output_dir=str(pyt_dir), exp_name=f"ppo_pyt_{dev}"),
+        )
+        assert len(pd.read_table(pyt_dir / "progress.txt")) == 1
+
+        tf2_dir = tmp_path / f"ppo_tf2_{dev}"
+        ppo_tf2(
+            env_fn=partial(gym.make, "CartPole-v1"),
+            ac_kwargs=dict(hidden_sizes=(16,)),
+            steps_per_epoch=60,
+            epochs=1,
+            max_ep_len=30,
+            device=dev,
+            logger_kwargs=dict(output_dir=str(tf2_dir), exp_name=f"ppo_tf2_{dev}"),
+        )
+        assert len(pd.read_table(tf2_dir / "progress.txt")) == 1
 
 
 def test_pytorch_terminated_vs_truncated_bootstrapping(tmp_path, monkeypatch):

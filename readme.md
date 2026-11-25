@@ -1,72 +1,87 @@
 # Spinning Up in Deep RL (Modernized)
 
-**Status:** Active & Modernized (PyTorch 2.10.0, TensorFlow 2.20.0, Gymnasium)
-
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10–3.13](https://img.shields.io/badge/python-3.10%E2%80%933.13-blue.svg)](https://www.python.org/downloads/)
-[![GPU Enabled](https://img.shields.io/badge/GPU-Accelerated-green.svg)](#hardware-acceleration)
+[![CI](https://github.com/tkiethuynh/spinningup/actions/workflows/ci.yml/badge.svg)](https://github.com/tkiethuynh/spinningup/actions/workflows/ci.yml)
 
-Welcome to the **modernized** version of OpenAI's [Spinning Up in Deep RL](https://spinningup.openai.com)! This repository updates the ecosystem to modern PyTorch, TensorFlow 2 / Keras 3, and Gymnasium while preserving the educational clarity and standalone nature of the original implementations.
+Welcome to the **modernized** edition of OpenAI's [Spinning Up in Deep RL](https://spinningup.openai.com)! This repository brings the curriculum to modern **Python 3.10–3.13**, **Gymnasium (`>=1.0.0`)** (including open-source MuJoCo `v5`), **PyTorch 2.x**, and **TensorFlow 2 / Keras 3** while keeping what made the original special: short, standalone, heavily annotated implementations where every equation maps cleanly to readable Python.
 
-## What's New in the Modernized Version?
+## Learn Deep RL
 
-* **Gymnasium Integration:** Fully migrated from `gym` to `gymnasium` (`>=1.0.0`) with separated `terminated` vs `truncated` handling across all on-policy bootstrapping and off-policy replay buffers, standardized on `v5` MuJoCo tasks (e.g., `HalfCheetah-v5`).
-* **TensorFlow 2.x / Keras 3 Migration:** Subclassed `tf.keras.Model` architectures with `@tf.keras.utils.register_keras_serializable`, eager + `@tf.function` `tf.GradientTape` training loops, `.keras` model persistence, and full `MpiAdamOptimizer` synchronization.
-* **PyTorch 2.x Optimization & Complete TRPO:** Aligned on `torch==2.10.0` with pure-tensor `torch.compile()` loss graph optimization (`--compile`), device-safe `mpi_pytorch` gradient/parameter synchronization, and a full PyTorch TRPO implementation alongside VPG, PPO, DDPG, TD3, and SAC.
-* **CUDA 12 / cuDNN 9 Dependency Alignment:** `torch==2.10.0` + `tensorflow==2.20.0` align natively on CUDA 12 and cuDNN 9 (`libcudnn.so.9`), with idempotent CUDA 12 / XLA initialization in `spinup.utils.device_utils`.
+Whether you are just starting out or bridging theory to code, Spinning Up provides:
 
-## Installation
+- A structured **[Introduction to RL](https://spinningup.openai.com/en/latest/spinningup/rl_intro.html)** (terminology, math, policy optimization, Q-learning).
+- Joshua Achiam's essay **[Spinning Up as a Deep RL Researcher](https://spinningup.openai.com/en/latest/spinningup/spinningup.html)** on how to learn and debug RL algorithms.
+- A curated list of **[Key Papers](https://spinningup.openai.com/en/latest/spinningup/keypapers.html)** organized by topic.
+- Minimal **~130-line starter scripts** demonstrating policy gradients from scratch in both frameworks:
+  - [`spinup/examples/pytorch/pg_math/`](spinup/examples/pytorch/pg_math/) (`1_simple_pg.py`, `2_rtg_pg.py`)
+  - [`spinup/examples/tf2/pg_math/`](spinup/examples/tf2/pg_math/) (`1_simple_pg.py`, `2_rtg_pg.py`)
+- Annotated, standalone **RL algorithm implementations** in **PyTorch** and **TensorFlow 2** (`vpg`, `trpo`, `ppo`, `ddpg`, `td3`, `sac`).
+- Hands-on **warm-up exercises** in [`spinup/exercises/pytorch/`](spinup/exercises/pytorch/).
+
+## Quickstart & Installation
 
 ### Prerequisites
 - Python 3.10 through 3.13
-- OpenMPI (for parallel execution: `openmpi-bin`, `libopenmpi-dev`)
-- SWIG and Python development headers (optional, for `[box2d]` environments)
-- NVIDIA Drivers (optional, for GPU support)
+- OpenMPI (for parallel CPU execution: `openmpi-bin` and `libopenmpi-dev` on Ubuntu/Debian; `openmpi` via Homebrew on macOS)
+- SWIG (`swig`) and Python dev headers (`python3-dev`) only if installing `[box2d]`
 
 ### Setup
+
 ```bash
-# Create and activate conda or venv environment (Python 3.10–3.13)
 conda create -n spinningup python=3.12
 conda activate spinningup
 
-# Install system dependencies (Ubuntu/Debian)
-sudo apt update && sudo apt install -y openmpi-bin libopenmpi-dev swig python3-dev
+# System dependencies (Ubuntu/Debian)
+sudo apt update && sudo apt install -y openmpi-bin libopenmpi-dev
 
-# Clone the repository
 git clone https://github.com/tkiethuynh/spinningup.git
 cd spinningup
 
-# Install core package (classic_control + mujoco included)
-pip install -e .
+# Install Spinning Up with your chosen backend (PyTorch recommended)
+pip install -e ".[pytorch]"
 
-# Optional extras: Box2D, Atari, Gemini analysis helper, or all
-# pip install -e ".[box2d]"
+# Or TensorFlow 2 / Keras 3 only:
+# pip install -e ".[tf2]"
+
+# Or both backends (aligned on CUDA 12 / cuDNN 9) + Box2D + Atari:
 # pip install -e ".[all]"
 ```
 
-## Hardware Acceleration
+> **Tip (lightweight CPU laptop install):** To avoid downloading CUDA wheels when learning on a CPU-only machine, install CPU PyTorch first, then the core package:
+> ```bash
+> pip install torch==2.10.0 --index-url https://download.pytorch.org/whl/cpu
+> pip install -e .
+> ```
 
-Both backends automatically select available accelerators (`cuda` / `mps` / `cpu` for PyTorch; `/GPU:0` / `/device:CPU:0` for TensorFlow). See the [Modernization Report](docs/modernization.md) for technical details.
+### Running Your First Experiment
 
 ```bash
-# Run PPO with PyTorch
-python -m spinup.run ppo --env CartPole-v1
+# Train PPO on CartPole-v1 (uses PyTorch backend by default)
+python -m spinup.run ppo --env CartPole-v1 --exp_name hello_ppo
 
-# Run PPO with TensorFlow 2
-python -m spinup.run ppo_tf2 --env CartPole-v1
+# Compare the simplest policy gradient script (~130 lines)
+python spinup/examples/pytorch/pg_math/1_simple_pg.py
+python spinup/examples/pytorch/pg_math/2_rtg_pg.py
 
-# Enable PyTorch loss-graph compilation
-python -m spinup.run ppo --env HalfCheetah-v5 --compile
+# Watch the trained agent or plot progress
+python -m spinup.run test_policy data/hello_ppo/hello_ppo_s0
+python -m spinup.run plot data/hello_ppo
 ```
 
-## Documentation
+### CPU vs. GPU (`--device`)
 
-- **[Modernization Report](docs/modernization.md)**: Architectural notes, dependency alignment, and verification details (`docs/modernization.tex` for LaTeX source).
-- **[Spinning Up Site](https://spinningup.openai.com)**: Original RL theory and educational content.
+Algorithms default to **`--device cpu`**, which is typically **faster** for single-environment RL loops with small `[64, 64]` or `[256, 256]` MLPs because every `env.step()` executes one transition at a time on CPU (avoiding per-step host-to-GPU transfer latency). Pass `--device auto` or `--device cuda` / `--device gpu` when using larger networks, custom pixel critics, or vectorized experiments:
+
+```bash
+python -m spinup.run ppo --env HalfCheetah-v5 --device auto
+python -m spinup.run sac_tf2 --env HalfCheetah-v5 --device gpu
+```
 
 ## Included Algorithms
 
-All six core algorithms are implemented in both **PyTorch** and **TensorFlow 2**:
+All six core algorithms are implemented symmetrically in both **PyTorch** (`spinup/algos/pytorch/`) and **TensorFlow 2** (`spinup/algos/tf2/`) with explicit `terminated` vs. `truncated` bootstrapping, full parameter docstrings, and MPI support:
+
 - Vanilla Policy Gradient (`vpg_pytorch`, `vpg_tf2`)
 - Trust Region Policy Optimization (`trpo_pytorch`, `trpo_tf2`)
 - Proximal Policy Optimization (`ppo_pytorch`, `ppo_tf2`)
@@ -74,15 +89,17 @@ All six core algorithms are implemented in both **PyTorch** and **TensorFlow 2**
 - Twin Delayed DDPG (`td3_pytorch`, `td3_tf2`)
 - Soft Actor-Critic (`sac_pytorch`, `sac_tf2`)
 
-## Testing
+## Testing & Engineering Details
 
 ```bash
 pytest -v test/
 ```
 
+See the **[Modernization Report](docs/modernization.md)** (`docs/modernization.tex` for LaTeX source) for architectural details on Gymnasium migration, Keras 3 `.keras` serialization, and CUDA 12 / cuDNN 9 alignment.
+
 ## Citing
 
-If you use this modernized version in your research, please cite both the original work and this modernized fork:
+If you use this codebase in your research, please cite both the original Spinning Up work and this modernized repository:
 
 ```bibtex
 @article{SpinningUp2018,

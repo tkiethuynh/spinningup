@@ -78,11 +78,11 @@ Installing Spinning Up
 
     git clone https://github.com/tkiethuynh/spinningup.git
     cd spinningup
-    pip install -e .
+    pip install -e ".[pytorch]"
 
 .. admonition:: You Should Know
 
-    Spinning Up installs Gymnasium Classic Control and open-source MuJoCo environments by default. To install Box2D (e.g., ``LunarLander-v3``) or all optional extras, run ``pip install -e ".[box2d]"`` or ``pip install -e ".[all]"``. Check out the `Gymnasium`_ github page for help.
+    Install ``.[pytorch]`` (recommended), ``.[tf2]``, or ``.[all]`` (both PyTorch and TensorFlow 2 aligned on CUDA 12 / cuDNN 9, plus Box2D and Atari). For a lightweight CPU-only PyTorch laptop setup without CUDA libraries, install CPU PyTorch first (``pip install torch==2.10.0 --index-url https://download.pytorch.org/whl/cpu``) followed by ``pip install -e .``. Spinning Up includes Gymnasium Classic Control and open-source MuJoCo environments by default; install ``.[box2d]`` for ``LunarLander-v3``. Check out the `Gymnasium`_ github page for help.
 
 .. _`Gymnasium`: https://github.com/Farama-Foundation/Gymnasium
 

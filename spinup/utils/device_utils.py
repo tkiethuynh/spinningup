@@ -5,8 +5,6 @@ import site
 import sys
 import tempfile
 
-import torch
-
 _GPU_SETUP_DONE = False
 
 
@@ -138,27 +136,29 @@ def setup_tf_gpu():
     _prepend_env_path("PATH", ptxas_dirs)
 
 
-# Call setup BEFORE importing tensorflow
-setup_tf_gpu()
+def get_torch_device(device: str | None = None):
+    """Returns the requested or best available PyTorch device."""
+    import torch
 
-try:
+    if device is None or device == "auto":
+        if torch.cuda.is_available():
+            return torch.device("cuda")
+        if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            return torch.device("mps")
+        return torch.device("cpu")
+    return torch.device(device)
+
+
+def get_tf_device(device: str | None = None) -> str:
+    """Returns the requested or best available TensorFlow device string."""
+    setup_tf_gpu()
     import tensorflow as tf
+
     tf.get_logger().setLevel(logging.ERROR)
-except ImportError:
-    tf = None
-
-
-def get_torch_device():
-    """Returns the most appropriate PyTorch device."""
-    if torch.cuda.is_available():
-        return torch.device("cuda")
-    if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-        return torch.device("mps")
-    return torch.device("cpu")
-
-
-def get_tf_device():
-    """Returns a string representation of the best TF device."""
-    if tf and tf.config.list_physical_devices("GPU"):
-        return "/GPU:0"
-    return "/device:CPU:0"
+    if device is None or device == "auto":
+        return "/GPU:0" if tf.config.list_physical_devices("GPU") else "/device:CPU:0"
+    if device.lower() == "cpu":
+        return "/device:CPU:0"
+    if device.lower() in ("gpu", "cuda"):
+        return "/GPU:0" if tf.config.list_physical_devices("GPU") else "/device:CPU:0"
+    return device
