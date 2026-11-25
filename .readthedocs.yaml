@@ -5,6 +5,7 @@ build:
   apt_packages:
     - texlive-latex-base
     - texlive-latex-extra
+    - texlive-science
     - dvisvgm
   tools:
     python: "3.12"

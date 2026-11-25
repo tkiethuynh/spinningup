@@ -415,7 +415,6 @@ Empirically, the choice :math:`b(s_t) = V^{\pi}(s_t)` has the desirable effect o
 
     .. math:: \phi_k = \arg \min_{\phi} \underE{s_t, \hat{R}_t \sim \pi_k}{\left( V_{\phi}(s_t) - \hat{R}_t \right)^2},
 
-    | 
     where :math:`\pi_k` is the policy at epoch :math:`k`. This is done with one or more steps of gradient descent, starting from the previous value parameters :math:`\phi_{k-1}`. 
 
 

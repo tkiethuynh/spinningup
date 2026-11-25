@@ -18,6 +18,7 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 import os
+import shutil
 import sys
 
 # Make sure spinup is accessible without going through setup.py
@@ -44,17 +45,34 @@ autodoc_mock_imports = [
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-extensions = ['sphinx.ext.imgmath',
+_HAS_IMGMATH = bool(shutil.which('latex') and shutil.which('dvisvgm'))
+
+extensions = [
+    'sphinx.ext.imgmath' if _HAS_IMGMATH else 'sphinx.ext.mathjax',
     'sphinx.ext.viewcode',
     'sphinx.ext.autodoc',
     'sphinx.ext.napoleon',
-    'myst_parser']
+    'myst_parser',
+]
+myst_enable_extensions = ['dollarmath']
 
 #'sphinx.ext.mathjax', ??
 
 # imgmath settings
 imgmath_image_format = 'svg'
 imgmath_font_size = 14
+
+# Fallback MathJax 3 configuration when LaTeX/dvisvgm are not installed
+mathjax3_config = {
+    'tex': {
+        'packages': {'[+]': ['cancel']},
+        'macros': {
+            'E': r'{\mathrm E}',
+            'underE': [r'\underset{\begin{subarray}{c}#1 \end{subarray}}{\E}\left[ #2 \right]', 2],
+            'Epi': [r'\underset{\begin{subarray}{c}\tau \sim \pi \end{subarray}}{\E}\left[ #1 \right]', 1],
+        },
+    },
+}
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -90,6 +108,7 @@ language = 'en'
 # directories to ignore when looking for source files.
 # This patterns also effect to html_static_path and html_extra_path
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+suppress_warnings = ['ref.footnote']
 
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = 'default' #'sphinx'

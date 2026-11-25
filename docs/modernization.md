@@ -26,9 +26,26 @@ All 12 algorithm implementations, `pg_math` tutorials, and exercises use the `gy
 
 ## 3. Lazy Backends & CUDA 12 / cuDNN 9 Alignment
 - **Lazy Package Exports:** `spinup/__init__.py` uses PEP 562 `__getattr__` so `import spinup` loads neither PyTorch nor TensorFlow eagerly. `pyproject.toml` makes `[pytorch]` (`torch==2.10.0`) and `[tf2]` (`tensorflow==2.20.0`) optional extras (`[all]` installs both).
-- **Native CUDA 12 / cuDNN 9 Interoperability:** When both backends are installed together (`[all]`), `torch==2.10.0` and `tensorflow==2.20.0` align natively on **CUDA 12 / cuDNN 9 (`libcudnn.so.9`)** across Python 3.10–3.13 (`x86_64` and `aarch64`). `spinup/utils/device_utils.py` runs `setup_tf_gpu()` once per process on TF2 initialization without mutating `$HOME`.
+- **Native CUDA 12 / cuDNN 9 Interoperability & Multi-GPU MPI Sharding:** When both backends are installed together (`[all]`), `torch==2.10.0` and `tensorflow==2.20.0` align natively on **CUDA 12 / cuDNN 9 (`libcudnn.so.9`)** across Python 3.10–3.13 (`x86_64` and `aarch64`). `spinup/utils/device_utils.py` runs `setup_tf_gpu()` once per process on TF2 initialization without mutating `$HOME`, supports explicit device indices (`cuda:N`, `gpu:N`, `/GPU:N`), and automatically maps MPI workers across visible GPUs (`proc_id() % n_gpus`).
 
 ## 4. Logging, Plotting, and Packaging
-- **MPI-Safe `EpochLogger`:** `mpi_statistics_scalar` and `EpochLogger.log_tabular` always participate across all ranks, returning `np.nan` on empty epochs so table headers never drift or cause late-epoch `AssertionError` / MPI deadlocks.
-- **Modern Plotting & Checkpoint Testing:** `spinup/utils/plot.py` uses `seaborn.lineplot(..., errorbar='sd')`; `test_policy.py` forwards `--deterministic` for both PyTorch and TF2 `.keras` checkpoints.
-- **PEP 621 Packaging & CI:** Replaced legacy `py_modules=['spinup']` with `pyproject.toml` + `find_namespace_packages` (`spinup*`), optional extras (`[pytorch]`, `[tf2]`, `[box2d]`, `[atari]`, `[docs]`, `[all]`), Sphinx `autodoc` verification, and GitHub Actions CI.
+- **MPI-Safe `EpochLogger`:** `mpi_statistics_scalar` and `EpochLogger.log_tabular` always participate across all ranks, returning `np.nan` on empty epochs so table headers never drift or cause late-epoch `AssertionError` / MPI deadlocks. `Logger._tf2_simple_save` and `restore_tf2_model` also isolate Keras 3 / NumPy 2 array-copy deprecation noise during `.keras` serialization.
+- **Modern Plotting, Atari & Checkpoint Testing:** `spinup/utils/plot.py` uses `seaborn.lineplot(..., errorbar='sd')`; `test_policy.py` forwards `--deterministic` for both PyTorch and TF2 `.keras` checkpoints; and `spinup/run.py` / `spinup/utils/run_utils.py` auto-register bundled `ale-py` Atari environments (`ALE/*-v5` and `ALE/*-ram-v5`) and flatten multi-dimensional `Box` observations when using MLP policies.
+- **PEP 621 Packaging, Zero-Warning Docs & CI:** Replaced legacy `py_modules=['spinup']` with `pyproject.toml` + `find_namespace_packages` (`spinup*`), optional extras (`[pytorch]`, `[tf2]`, `[box2d]`, `[atari]`, `[docs]`, `[all]`), strict zero-warning Sphinx builds (`imgmath` SVG when TeX Live is present, `mathjax` fallback otherwise), GitHub Pages deployment, and GitHub Actions CI (`test (3.10)`, `test (3.12)`, `docs`).
+
+## 5. Empirical MuJoCo `v5` Verification
+To verify learning dynamics on open-source Gymnasium MuJoCo `v5` tasks beyond single-epoch smoke checks (with `seed=0`):
+- **On-Policy PPO (100,000 steps, 4 MPI ranks, CPU, `steps_per_epoch=4000`, `epochs=25`):** `ppo_pytorch` and `ppo_tf2` were evaluated across 25 epochs on `HalfCheetah-v5` and `Hopper-v5`.
+- **Off-Policy SAC (20,000 steps, NVIDIA RTX 3070, `steps_per_epoch=2000`, `epochs=10`):** `sac_pytorch` (`device='cuda'`) and `sac_tf2` (`device='gpu'`) were evaluated with `num_test_episodes=5` deterministic evaluations per epoch. On `HalfCheetah-v5`, moving `sac_pytorch` from ARM CPU (`405.46 s`) to RTX 3070 (`226.05 s`) cut runtime by ~44%.
+- **Fast Convergence Regression Gate (`test/test_examples_and_exercises.py`):** Automated CI asserts multi-fold learning improvement on `InvertedPendulum-v5` for `ppo_pytorch` (8 epochs x 500 steps) and `sac_pytorch` (4 epochs x 400 steps).
+
+| Algorithm | Environment | Hardware / Mode | Env Steps | Initial Return | Peak Return | Final Return | Wall Time |
+| :--- | :--- | :--- | ---: | ---: | ---: | ---: | ---: |
+| `ppo_pytorch` | `HalfCheetah-v5` | CPU (`4` MPI ranks) | 100,000 | `-288.8` | `-117.0` | `-151.6` | 55.64 s |
+| `ppo_pytorch` | `Hopper-v5` | CPU (`4` MPI ranks) | 100,000 | `8.7` | `231.6` | `231.6` | 67.91 s |
+| `ppo_tf2` | `HalfCheetah-v5` | CPU (`4` MPI ranks) | 100,000 | `-481.1` | `-301.1` | `-341.4` | 445.54 s |
+| `ppo_tf2` | `Hopper-v5` | CPU (`4` MPI ranks) | 100,000 | `11.3` | `302.3` | `302.3` | 526.31 s |
+| `sac_pytorch` | `HalfCheetah-v5` | RTX 3070 (`cuda`) | 20,000 | `-26.7` | `950.6` | `766.2` | 226.05 s |
+| `sac_pytorch` | `Hopper-v5` | RTX 3070 (`cuda`) | 20,000 | `97.3` | `805.7` | `471.9` | 195.15 s |
+| `sac_tf2` | `HalfCheetah-v5` | RTX 3070 (`gpu`) | 20,000 | `-30.3` | `698.4` | `698.4` | 428.21 s |
+| `sac_tf2` | `Hopper-v5` | RTX 3070 (`gpu`) | 20,000 | `95.1` | `781.9` | `686.3` | 261.06 s |

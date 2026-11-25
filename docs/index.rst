@@ -60,6 +60,7 @@ Welcome to Spinning Up in Deep RL!
    :maxdepth: 2
    :caption: Etc.
 
+   modernization
    etc/acknowledgements
    etc/author
 

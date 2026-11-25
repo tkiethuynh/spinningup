@@ -8,6 +8,10 @@ We benchmarked the Spinning Up algorithm implementations in five environments fr
 
 .. _MuJoCo: https://gym.openai.com/envs/#mujoco
 
+.. note::
+
+    The 3M-timestep curves below show OpenAI's original multi-seed reference benchmarks. Empirical verification of the modernized PyTorch 2.10 and TensorFlow 2.20 / Keras 3 implementations on Gymnasium open-source MuJoCo ``v5`` environments (``HalfCheetah-v5``, ``Hopper-v5``, ``InvertedPendulum-v5``) is documented in the `Modernization Report <../modernization.html#empirical-mujoco-v5-verification>`_.
+
 Performance in Each Environment
 ===============================
 

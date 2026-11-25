@@ -5,6 +5,7 @@ from spinup.utils.mpi_tools import mpi_fork, msg
 from spinup.utils.serialization_utils import convert_json
 import base64
 from copy import deepcopy
+from functools import partial
 import cloudpickle
 import json
 import numpy as np
@@ -21,6 +22,36 @@ from tqdm import trange
 import zlib
 
 DIV_LINE_WIDTH = 80
+
+
+def _resolve_env_name(env_name):
+    """Register ALE if available and return (canonical_env_id, make_kwargs) for env_name."""
+    import gymnasium as gym
+
+    if isinstance(env_name, str) and (
+        env_name.startswith("ALE/") or "NoFrameskip" in env_name or env_name not in gym.envs.registry
+    ):
+        try:
+            import ale_py
+
+            gym.register_envs(ale_py)
+        except ImportError:
+            pass
+
+    if isinstance(env_name, str) and env_name.startswith("ALE/") and "-ram-" in env_name:
+        return env_name.replace("-ram-", "-"), {"obs_type": "ram"}
+    return env_name, {}
+
+
+def _make_env(env_name):
+    """Create a Gymnasium environment, registering ALE and flattening multi-D Box obs if needed."""
+    import gymnasium as gym
+
+    resolved_id, make_kwargs = _resolve_env_name(env_name)
+    env = gym.make(resolved_id, **make_kwargs)
+    if isinstance(env.observation_space, gym.spaces.Box) and len(env.observation_space.shape) > 1:
+        env = gym.wrappers.FlattenObservation(env)
+    return env
 
 def setup_logger_kwargs(exp_name, seed=None, data_dir=None, datestamp=False):
     """
@@ -150,9 +181,8 @@ def call_experiment(exp_name, thunk, seed=0, num_cpu=1, data_dir=None,
     def thunk_plus():
         # Make 'env_fn' from 'env_name'
         if 'env_name' in kwargs:
-            import gymnasium as gym
             env_name = kwargs['env_name']
-            kwargs['env_fn'] = lambda : gym.make(env_name)
+            kwargs['env_fn'] = partial(_make_env, env_name)
             del kwargs['env_name']
 
         # Fork into multiple processes

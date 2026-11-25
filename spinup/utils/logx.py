@@ -6,6 +6,7 @@ Logs to a tab-separated-values file (path/to/output_directory/progress.txt)
 
 """
 import atexit
+from contextlib import contextmanager
 import json
 import joblib
 import numpy as np
@@ -47,6 +48,18 @@ def colorize(string, color, bold=False, highlight=False):
     return '\x1b[%sm%s\x1b[0m' % (';'.join(attr), string)
 
 
+@contextmanager
+def _suppress_keras_np2_warning():
+    """Suppress upstream Keras 3 / NumPy 2 copy-keyword DeprecationWarning on model save/load."""
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message=r".*__array__ implementation doesn't accept a copy keyword.*",
+            category=DeprecationWarning,
+        )
+        yield
+
+
 def restore_tf2_model(fpath):
     """
     Loads a TF2 model saved by Logger.
@@ -71,7 +84,8 @@ def restore_tf2_model(fpath):
     # Ensure custom @register_keras_serializable MLPActorCritic classes are registered
     for algo in ("vpg", "trpo", "ppo", "ddpg", "td3", "sac"):
         __import__(f"spinup.algos.tf2.{algo}.core")
-    return tf.keras.models.load_model(fpath, compile=False)
+    with _suppress_keras_np2_warning():
+        return tf.keras.models.load_model(fpath, compile=False)
 
 
 class Logger:
@@ -182,7 +196,8 @@ class Logger:
             fname = 'model' + ('%d' % itr if itr is not None else '') + '.keras'
             fname = osp.join(fpath, fname)
             os.makedirs(fpath, exist_ok=True)
-            self.tf2_saver_elements.save(fname)
+            with _suppress_keras_np2_warning():
+                self.tf2_saver_elements.save(fname)
 
     def setup_pytorch_saver(self, what_to_save):
         """

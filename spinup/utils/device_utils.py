@@ -137,28 +137,49 @@ def setup_tf_gpu():
 
 
 def get_torch_device(device: str | None = None):
-    """Returns the requested or best available PyTorch device."""
+    """Returns the requested or best available PyTorch device, sharding MPI ranks across GPUs."""
     import torch
 
-    if device is None or device == "auto":
+    d = "auto" if device is None else str(device).strip()
+    dl = d.lower()
+    if dl in ("cpu", "/device:cpu:0", "/cpu:0"):
+        return torch.device("cpu")
+    if dl.startswith(("cuda:", "gpu:", "/gpu:", "/device:gpu:")):
+        idx = dl.rsplit(":", 1)[1]
+        return torch.device(f"cuda:{idx}") if torch.cuda.is_available() else torch.device("cpu")
+    if dl in ("auto", "cuda", "gpu"):
         if torch.cuda.is_available():
+            from spinup.utils.mpi_tools import num_procs, proc_id
+
+            n_gpus = torch.cuda.device_count()
+            if n_gpus > 1 and num_procs() > 1:
+                return torch.device(f"cuda:{proc_id() % n_gpus}")
             return torch.device("cuda")
-        if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        if dl == "auto" and hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
             return torch.device("mps")
         return torch.device("cpu")
-    return torch.device(device)
+    return torch.device(d)
 
 
 def get_tf_device(device: str | None = None) -> str:
-    """Returns the requested or best available TensorFlow device string."""
+    """Returns the requested or best available TensorFlow device string, sharding MPI ranks across GPUs."""
     setup_tf_gpu()
     import tensorflow as tf
 
     tf.get_logger().setLevel(logging.ERROR)
-    if device is None or device == "auto":
-        return "/GPU:0" if tf.config.list_physical_devices("GPU") else "/device:CPU:0"
-    if device.lower() == "cpu":
+    gpus = tf.config.list_physical_devices("GPU")
+    d = "auto" if device is None else str(device).strip()
+    dl = d.lower()
+    if dl in ("cpu", "/device:cpu:0", "/cpu:0"):
         return "/device:CPU:0"
-    if device.lower() in ("gpu", "cuda"):
-        return "/GPU:0" if tf.config.list_physical_devices("GPU") else "/device:CPU:0"
-    return device
+    if dl in ("auto", "gpu", "cuda"):
+        if not gpus:
+            return "/device:CPU:0"
+        from spinup.utils.mpi_tools import num_procs, proc_id
+
+        idx = (proc_id() % len(gpus)) if (len(gpus) > 1 and num_procs() > 1) else 0
+        return f"/GPU:{idx}"
+    if dl.startswith(("cuda:", "gpu:", "/gpu:", "/device:gpu:")):
+        idx = dl.rsplit(":", 1)[1]
+        return f"/GPU:{idx}" if gpus else "/device:CPU:0"
+    return d

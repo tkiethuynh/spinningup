@@ -74,8 +74,29 @@ MuJoCo Tasks & Open-source MuJoCo \texttt{v5} suite & \texttt{HalfCheetah-v5}, \
     \item \textbf{Fused Graph Steps \& \texttt{pg\_math} Parity:} Off-policy TF2 algorithms compile \texttt{tf.GradientTape}, optimizer updates, and Polyak averaging inside \texttt{@tf.function} steps, alongside symmetric \texttt{spinup/examples/tf2/pg\_math/} tutorials.
 \end{itemize}
 
-\section{Lazy Packaging and Dependency Alignment}
-\texttt{spinup/\_\_init\_\_.py} exposes algorithm entrypoints lazily via PEP 562 \texttt{\_\_getattr\_\_}. \texttt{pyproject.toml} provides optional extras (\texttt{pytorch}, \texttt{tf2}, \texttt{box2d}, \texttt{atari}, \texttt{docs}, \texttt{all}) and pins \texttt{torch==2.10.0} and \texttt{tensorflow==2.20.0} so both backends share CUDA 12 and cuDNN 9 (\texttt{libcudnn.so.9}) cleanly across Python 3.10--3.13.
+\section{Lazy Packaging, Multi-GPU MPI, and Empirical Verification}
+\texttt{spinup/\_\_init\_\_.py} exposes algorithm entrypoints lazily via PEP 562 \texttt{\_\_getattr\_\_}. \texttt{pyproject.toml} provides optional extras (\texttt{pytorch}, \texttt{tf2}, \texttt{box2d}, \texttt{atari}, \texttt{docs}, \texttt{all}) and pins \texttt{torch==2.10.0} and \texttt{tensorflow==2.20.0} so both backends share CUDA 12 and cuDNN 9 (\texttt{libcudnn.so.9}) cleanly across Python 3.10--3.13. \texttt{device\_utils.py} supports indexed GPU strings and automatic MPI rank sharding (\texttt{proc\_id() \% n\_gpus}), while \texttt{spinup.run} registers bundled \texttt{ale-py} Atari environments automatically and Sphinx builds cleanly with zero warnings.
+
+\subsection{Empirical MuJoCo v5 Verification}
+Table~\ref{tab:mujoco-v5} summarizes empirical MuJoCo \texttt{v5} training runs (\texttt{seed=0}): 100k-step 4-rank MPI PPO runs on CPU (\texttt{AverageEpRet}) and 20k-step SAC runs on an NVIDIA RTX 3070 (\texttt{AverageTestEpRet}, 5 test episodes per epoch). On \texttt{HalfCheetah-v5}, running \texttt{sac\_pytorch} on RTX 3070 reduced wall time from 405.46\,s (CPU) to 226.05\,s.
+
+\begin{table}[h]
+\centering
+\caption{Empirical MuJoCo \texttt{v5} Verification (\texttt{HalfCheetah-v5} and \texttt{Hopper-v5}, \texttt{seed=0})}
+\label{tab:mujoco-v5}
+\begin{tabular}{@{}lllrrrr@{}}
+\toprule
+Algorithm & Env & Device / Mode & Steps & Init & Peak & Final (Time) \\ \midrule
+\texttt{ppo\_pytorch} & \texttt{HalfCheetah-v5} & CPU (4 MPI) & 100k & $-288.8$ & $-117.0$ & $-151.6$ (55.64\,s) \\
+\texttt{ppo\_pytorch} & \texttt{Hopper-v5} & CPU (4 MPI) & 100k & $8.7$ & $231.6$ & $231.6$ (67.91\,s) \\
+\texttt{ppo\_tf2} & \texttt{HalfCheetah-v5} & CPU (4 MPI) & 100k & $-481.1$ & $-301.1$ & $-341.4$ (445.54\,s) \\
+\texttt{ppo\_tf2} & \texttt{Hopper-v5} & CPU (4 MPI) & 100k & $11.3$ & $302.3$ & $302.3$ (526.31\,s) \\
+\texttt{sac\_pytorch} & \texttt{HalfCheetah-v5} & RTX 3070 & 20k & $-26.7$ & $950.6$ & $766.2$ (226.05\,s) \\
+\texttt{sac\_pytorch} & \texttt{Hopper-v5} & RTX 3070 & 20k & $97.3$ & $805.7$ & $471.9$ (195.15\,s) \\
+\texttt{sac\_tf2} & \texttt{HalfCheetah-v5} & RTX 3070 & 20k & $-30.3$ & $698.4$ & $698.4$ (428.21\,s) \\
+\texttt{sac\_tf2} & \texttt{Hopper-v5} & RTX 3070 & 20k & $95.1$ & $781.9$ & $686.3$ (261.06\,s) \\ \bottomrule
+\end{tabular}
+\end{table}
 
 \section{Citation}
 \begin{lstlisting}[language=TeX]
