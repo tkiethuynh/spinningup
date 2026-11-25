@@ -53,17 +53,10 @@ jobs:
           python -m pip install --no-deps /tmp/dist/spinup-*.whl
           cd /tmp && python -c "import sys, spinup; assert 'site-packages/spinup/' in spinup.__file__.replace('\\\\', '/'), spinup.__file__; assert 'torch' not in sys.modules and 'tensorflow' not in sys.modules; from spinup import vpg_pytorch, trpo_pytorch, ppo_pytorch, ddpg_pytorch, td3_pytorch, sac_pytorch, vpg_tf2, trpo_tf2, ppo_tf2, ddpg_tf2, td3_tf2, sac_tf2; import spinup.examples.pytorch.pg_math; import spinup.examples.tf2.pg_math; import spinup.exercises.pytorch.problem_set_1; print(spinup.__version__, spinup.__file__)"
 
-  docs:
+  build-docs:
     needs: test
     if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
       - uses: actions/checkout@v6
@@ -79,6 +72,9 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             texlive-latex-base texlive-latex-extra texlive-science dvisvgm
 
+      - name: Setup Pages
+        uses: actions/configure-pages@v6
+
       - name: Build Sphinx HTML documentation
         run: |
           python -m pip install --upgrade pip
@@ -86,14 +82,22 @@ jobs:
           sphinx-build -W --keep-going -b html docs /tmp/docs-out
           touch /tmp/docs-out/.nojekyll
 
-      - name: Setup Pages
-        uses: actions/configure-pages@v6
-
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5
         with:
           path: /tmp/docs-out
 
+  deploy-docs:
+    needs: build-docs
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
