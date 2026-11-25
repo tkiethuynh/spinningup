@@ -24,32 +24,15 @@ import sys
 dirname = os.path.dirname
 sys.path.insert(0, dirname(dirname(__file__)))
 
-# Mock mpi4py to get around having to install it on RTD server (which fails)
-# Also to mock PyTorch, because it is too large for the RTD server to download
-from unittest.mock import MagicMock
+# Preload scipy.signal before autodoc mocks torch (avoids scipy array_api_compat issubclass check on mock Tensor)
+import scipy.signal  # noqa: F401
 
-class Mock(MagicMock):
-    @classmethod
-    def __getattr__(cls, name):
-        return MagicMock()
-
-MOCK_MODULES = ['mpi4py',
-                'torch',
-                'torch.optim',
-                'torch.nn',
-                'torch.distributions',
-                'torch.distributions.normal',
-                'torch.distributions.categorical',
-                'torch.distributions.kl',
-                'torch.nn.functional',
-                'tensorflow',
-                'tensorflow.keras',
-                'tensorflow.keras.layers',
-                ]
-sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
-
-# Finish imports
-import spinup
+# Mock heavy/system dependencies (mpi4py, PyTorch, TensorFlow) during autodoc builds
+autodoc_mock_imports = [
+    'mpi4py',
+    'torch',
+    'tensorflow',
+]
 
 
 # -- General configuration ------------------------------------------------

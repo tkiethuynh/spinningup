@@ -2,6 +2,10 @@ version: 2
 
 build:
   os: ubuntu-24.04
+  apt_packages:
+    - texlive-latex-base
+    - texlive-latex-extra
+    - dvisvgm
   tools:
     python: "3.12"
 
@@ -11,6 +15,3 @@ sphinx:
 python:
   install:
     - requirements: docs/docs_requirements.txt
-    - method: pip
-      path: .
-      extra_requirements: []
