@@ -11,6 +11,22 @@ from spinup import ppo_pytorch, ppo_tf2
 from spinup.utils.logx import EpochLogger
 
 
+def test_mpi_tools_disables_hwloc_gl():
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import os; os.environ.pop('HWLOC_COMPONENTS', None); "
+            "import spinup.utils.mpi_tools; "
+            "assert os.environ.get('HWLOC_COMPONENTS') == '-gl'",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+
+
 def test_epoch_logger_handles_empty_first_epoch(tmp_path):
     logger = EpochLogger(output_dir=str(tmp_path), exp_name="empty_test")
 

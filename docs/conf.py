@@ -99,8 +99,8 @@ author = 'Joshua Achiam'
 # built documents.
 #
 # The short X.Y version.
-version = '0.3.0'
-release = '0.3.0'
+version = '0.3.1'
+release = '0.3.1'
 
 language = 'en'
 

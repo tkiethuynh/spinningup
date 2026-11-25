@@ -1,5 +1,9 @@
-from mpi4py import MPI
 import os, subprocess, sys
+
+# Skip hwloc's X11/OpenGL probe so MPI_Init never hangs over SSH/headless sessions
+os.environ.setdefault("HWLOC_COMPONENTS", "-gl")
+
+from mpi4py import MPI
 import numpy as np
 
 
